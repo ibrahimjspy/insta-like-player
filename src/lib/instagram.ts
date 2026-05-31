@@ -1,5 +1,7 @@
 /// Helpers for parsing Instagram URLs and captions.
 
+import type { Prisma } from "@prisma/client";
+
 const SHORTCODE_RE = /instagram\.com\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i;
 const TYPE_RE = /instagram\.com\/(reel|reels|p|tv)\//i;
 
@@ -30,6 +32,21 @@ export function postTypeFromUrl(url: string): PostType {
   if (t === "tv") return "igtv";
   return "post";
 }
+
+/// True when the URL path is always video (reel or IGTV), not a generic `/p/` post.
+export function isSureShotVideoUrl(url: string): boolean {
+  const t = postTypeFromUrl(url);
+  return t === "reel" || t === "igtv";
+}
+
+/// Prisma filter: rows whose stored URL is a reel or IGTV link.
+export const sureShotReelUrlWhere = {
+  OR: [
+    { reelUrl: { contains: "/reel/" } },
+    { reelUrl: { contains: "/reels/" } },
+    { reelUrl: { contains: "/tv/" } },
+  ],
+} satisfies Prisma.ReelWhereInput;
 
 /// Parses hashtags from a caption, lower-cased and without the leading '#'.
 export function parseHashtags(caption: string | null | undefined): string[] {

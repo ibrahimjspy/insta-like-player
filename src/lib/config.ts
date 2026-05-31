@@ -20,6 +20,8 @@ const schema = z.object({
   YTDLP_COOKIES_FILE: z.string().optional(),
   SYNC_RATE_LIMIT_MS: z.coerce.number().int().nonnegative().default(4000),
   SYNC_MAX_RETRIES: z.coerce.number().int().nonnegative().default(3),
+  /// When true (default), sync only downloads /reel/, /reels/, and /tv/ URLs.
+  SYNC_REELS_ONLY: z.string().optional(),
 });
 
 const parsed = schema.parse(process.env);
@@ -40,6 +42,7 @@ export const config = {
     // pacing is controlled by rateLimitMs rather than parallelism.
     rateLimitMs: parsed.SYNC_RATE_LIMIT_MS,
     maxRetries: parsed.SYNC_MAX_RETRIES,
+    reelsOnly: parsed.SYNC_REELS_ONLY !== "false",
   },
 } as const;
 

@@ -4,7 +4,11 @@ import path from "node:path";
 
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
-import { parseHashtags } from "@/lib/instagram";
+import { parseHashtags, sureShotReelUrlWhere } from "@/lib/instagram";
+
+/// Recorded on generic `/p/` likes when reels-only sync skips them.
+export const REELS_ONLY_SKIP_REASON =
+  "Reels-only sync: skipped generic /p/ post (may be a photo or carousel)";
 
 const VIDEO_EXTS = new Set([".mp4", ".mkv", ".webm", ".mov"]);
 const THUMB_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
@@ -14,6 +18,8 @@ export interface SyncOptions {
   limit?: number;
   /// Also re-attempt reels previously marked FAILED.
   includeFailed?: boolean;
+  /// When true (default), only download /reel/, /reels/, and /tv/ URLs.
+  reelsOnly?: boolean;
   /// Progress callback, called once per reel after it settles.
   onProgress?: (event: SyncProgress) => void;
 }
@@ -31,6 +37,8 @@ export interface SyncSummary {
   downloaded: number;
   failed: number;
   unavailable: number;
+  /// Generic `/p/` posts skipped before yt-dlp (reels-only mode).
+  skippedPosts: number;
 }
 
 interface YtDlpInfo {
@@ -219,12 +227,28 @@ async function downloadReel(reel: {
 export async function syncPending(options: SyncOptions = {}): Promise<SyncSummary> {
   await fs.mkdir(config.mediaDir, { recursive: true });
 
+  const reelsOnly = options.reelsOnly ?? config.sync.reelsOnly;
   const statuses = options.includeFailed
     ? (["PENDING", "FAILED"] as const)
     : (["PENDING"] as const);
 
+  let skippedPosts = 0;
+  if (reelsOnly) {
+    const { count } = await prisma.reel.updateMany({
+      where: {
+        status: { in: [...statuses] },
+        NOT: sureShotReelUrlWhere,
+      },
+      data: { status: "UNAVAILABLE", failReason: REELS_ONLY_SKIP_REASON },
+    });
+    skippedPosts = count;
+  }
+
   const reels = await prisma.reel.findMany({
-    where: { status: { in: [...statuses] } },
+    where: {
+      status: { in: [...statuses] },
+      ...(reelsOnly ? sureShotReelUrlWhere : {}),
+    },
     orderBy: { likedAt: "desc" },
     take: options.limit,
     select: { id: true, shortcode: true, reelUrl: true, creatorId: true },
@@ -235,6 +259,7 @@ export async function syncPending(options: SyncOptions = {}): Promise<SyncSummar
     downloaded: 0,
     failed: 0,
     unavailable: 0,
+    skippedPosts,
   };
 
   for (let i = 0; i < reels.length; i++) {

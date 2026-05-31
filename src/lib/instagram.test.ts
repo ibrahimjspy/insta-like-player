@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   extractShortcode,
+  isSureShotVideoUrl,
   normalizeInstagramUrl,
   parseHashtags,
   postTypeFromUrl,
@@ -67,6 +68,19 @@ describe("postTypeFromUrl", () => {
 
   it("returns unknown for unrecognised URLs", () => {
     expect(postTypeFromUrl("https://example.com/x/")).toBe("unknown");
+  });
+});
+
+describe("isSureShotVideoUrl", () => {
+  it("is true for reel and IGTV paths", () => {
+    expect(isSureShotVideoUrl("https://www.instagram.com/reel/ABC/")).toBe(true);
+    expect(isSureShotVideoUrl("https://www.instagram.com/reels/ABC/")).toBe(true);
+    expect(isSureShotVideoUrl("https://www.instagram.com/tv/ABC/")).toBe(true);
+  });
+
+  it("is false for generic posts and unknown URLs", () => {
+    expect(isSureShotVideoUrl("https://www.instagram.com/p/ABC/")).toBe(false);
+    expect(isSureShotVideoUrl("https://example.com/reel/ABC/")).toBe(false);
   });
 });
 

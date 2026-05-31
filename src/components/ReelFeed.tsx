@@ -118,8 +118,27 @@ function ReelSlide({
   onDelete: (id: string) => void;
   onSkip: (id: string) => void;
 }) {
+  const sectionRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const watched = useRef(false);
+  /// Only attach video src near the viewport so phones over Tailscale don't
+  /// open many full downloads at once (Safari looks like it's "still loading").
+  const [loadVideo, setLoadVideo] = useState(false);
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    const root = sectionRef.current;
+    if (!root) return;
+
+    const loader = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setLoadVideo(true);
+      },
+      { rootMargin: "200px", threshold: 0 },
+    );
+    loader.observe(root);
+    return () => loader.disconnect();
+  }, []);
 
   // Keep the element's muted state in sync with the user's preference.
   useEffect(() => {
@@ -131,11 +150,13 @@ function ReelSlide({
   // muted so the video still plays (a tap/keypress later restores sound).
   useEffect(() => {
     const el = videoRef.current;
-    if (!el) return;
+    if (!el || !loadVideo) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+        const isActive = entry.isIntersecting && entry.intersectionRatio > 0.6;
+        setActive(isActive);
+        if (isActive) {
           el.muted = muted;
           el.play().catch(() => {
             el.muted = true;
@@ -154,7 +175,7 @@ function ReelSlide({
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [reel.id, muted]);
+  }, [reel.id, muted, loadVideo]);
 
   const togglePlay = () => {
     const el = videoRef.current;
@@ -164,15 +185,23 @@ function ReelSlide({
   };
 
   return (
-    <section className="relative flex h-[100dvh] w-full items-center justify-center">
+    <section
+      ref={sectionRef}
+      className="relative flex h-[100dvh] w-full items-center justify-center"
+    >
+      {loadVideo && !active && (
+        <div className="pointer-events-none absolute z-10 text-sm text-white/50">
+          Loading video…
+        </div>
+      )}
       <video
         ref={videoRef}
-        src={videoSrc(reel.shortcode)}
+        src={loadVideo ? videoSrc(reel.shortcode) : undefined}
         poster={thumbSrc(reel.shortcode)}
         className="h-full w-full object-contain"
         loop
         playsInline
-        preload="metadata"
+        preload="none"
         onClick={togglePlay}
       />
 
