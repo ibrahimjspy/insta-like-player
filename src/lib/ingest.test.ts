@@ -94,6 +94,62 @@ describe("parseLikedPosts", () => {
   });
 });
 
+describe("parseLikedPosts (current label_values format)", () => {
+  const entry = {
+    timestamp: 1780005469,
+    media: [],
+    label_values: [
+      {
+        label: "URL",
+        value: "https://www.instagram.com/reel/DY0odpgTBqk/",
+        href: "https://www.instagram.com/reel/DY0odpgTBqk/",
+      },
+      { label: "Caption", value: "A great reel #kdrama #fun" },
+      { label: "Title", value: "" },
+      {
+        title: "Owner",
+        dict: [{ dict: [{ label: "Username", value: "spideey_k" }], title: "" }],
+      },
+    ],
+  };
+
+  it("extracts url, caption, creator and liked time", () => {
+    const [like] = parseLikedPosts([entry]);
+    expect(like).toEqual({
+      shortcode: "DY0odpgTBqk",
+      reelUrl: "https://www.instagram.com/reel/DY0odpgTBqk/",
+      creatorUsername: "spideey_k",
+      caption: "A great reel #kdrama #fun",
+      likedAt: new Date(1780005469 * 1000),
+    });
+  });
+
+  it("falls back to the URL href when value is missing", () => {
+    const e = {
+      timestamp: 1,
+      label_values: [{ label: "URL", href: "https://www.instagram.com/reel/ABC123/" }],
+    };
+    expect(parseLikedPosts([e])[0].shortcode).toBe("ABC123");
+  });
+
+  it("handles a missing owner / caption gracefully", () => {
+    const e = {
+      timestamp: 1,
+      label_values: [
+        { label: "URL", value: "https://www.instagram.com/reel/ABC123/" },
+      ],
+    };
+    const [like] = parseLikedPosts([e]);
+    expect(like.creatorUsername).toBeNull();
+    expect(like.caption).toBeNull();
+  });
+
+  it("skips entries without a recognisable URL", () => {
+    const e = { timestamp: 1, label_values: [{ label: "Caption", value: "no url here" }] };
+    expect(parseLikedPosts([e])).toEqual([]);
+  });
+});
+
 describe("importLikes", () => {
   beforeEach(() => {
     reelFindUnique.mockReset();
@@ -106,6 +162,7 @@ describe("importLikes", () => {
     reelUrl: "https://www.instagram.com/reel/ABC123/",
     creatorUsername: "nasa",
     likedAt: new Date("2024-05-01T00:00:00Z"),
+    caption: "to the moon #space",
   };
 
   it("creates a new reel and its creator", async () => {

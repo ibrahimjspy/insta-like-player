@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { canonicalReelUrl, extractShortcode } from "@/lib/instagram";
+import { canonicalReelUrl, extractShortcode, parseHashtags } from "@/lib/instagram";
 
 /// A single normalised like extracted from an Instagram export.
 export interface ParsedLike {
@@ -7,6 +7,7 @@ export interface ParsedLike {
   reelUrl: string;
   creatorUsername: string | null;
   likedAt: Date | null;
+  caption: string | null;
 }
 
 export interface ImportResult {
@@ -17,10 +18,19 @@ export interface ImportResult {
 }
 
 /// Parses the `liked_posts.json` produced by Instagram's "Download Your
-/// Information" export. The export shape is:
-///   { "likes_media_likes": [ { "title": "<username>",
-///       "string_list_data": [ { "href": "<url>", "timestamp": <unix> } ] } ] }
-/// We're defensive about the shape since Instagram tweaks it over time.
+/// Information" export. Instagram has shipped (at least) two shapes:
+///
+///   Legacy:  { "likes_media_likes": [ { "title": "<username>",
+///                "string_list_data": [ { "href": "<url>", "timestamp": <unix> } ] } ] }
+///
+///   Current: [ { "timestamp": <unix>, "label_values": [
+///                { "label": "URL", "value"/"href": "<url>" },
+///                { "label": "Caption", "value": "<caption>" },
+///                { "title": "Owner", "dict": [ { "dict": [ { "label": "Username",
+///                  "value": "<username>" } ] } ] } ] } ]
+///
+/// We dispatch per-entry so both shapes work, and stay defensive since
+/// Instagram tweaks this over time.
 export function parseLikedPosts(raw: unknown): ParsedLike[] {
   const root = raw as Record<string, unknown>;
   const entries =
@@ -32,28 +42,73 @@ export function parseLikedPosts(raw: unknown): ParsedLike[] {
 
   for (const entry of entries) {
     const e = entry as Record<string, unknown>;
+
+    if (Array.isArray(e?.label_values)) {
+      const like = parseLabelValueEntry(e);
+      if (like) likes.push(like);
+      continue;
+    }
+
+    // Legacy string_list_data shape (one entry may hold multiple links).
     const title = typeof e.title === "string" ? e.title : null;
     const list = (e.string_list_data as Record<string, unknown>[]) ?? [];
-
     for (const item of list) {
       const href = typeof item.href === "string" ? item.href : null;
-      if (!href) continue;
-
-      const shortcode = extractShortcode(href);
+      const shortcode = href ? extractShortcode(href) : null;
       if (!shortcode) continue;
-
       const ts = typeof item.timestamp === "number" ? item.timestamp : null;
-
       likes.push({
         shortcode,
         reelUrl: canonicalReelUrl(shortcode),
         creatorUsername: title,
         likedAt: ts ? new Date(ts * 1000) : null,
+        caption: null,
       });
     }
   }
 
   return likes;
+}
+
+interface LabelValue {
+  label?: string;
+  value?: string;
+  href?: string;
+  title?: string;
+  dict?: LabelValue[];
+}
+
+/// Parses a single entry from the current `label_values` export shape.
+function parseLabelValueEntry(entry: Record<string, unknown>): ParsedLike | null {
+  const values = (entry.label_values as LabelValue[]) ?? [];
+
+  const urlItem = values.find((v) => v.label === "URL" && (v.href || v.value));
+  const href = urlItem?.href || urlItem?.value;
+  const shortcode = href ? extractShortcode(href) : null;
+  if (!shortcode) return null;
+
+  const caption = values.find((v) => v.label === "Caption")?.value ?? null;
+
+  // Owner is a nested group: { title: "Owner", dict: [ { dict: [ {Username} ] } ] }
+  let creatorUsername: string | null = null;
+  const owner = values.find((v) => v.title === "Owner");
+  for (const group of owner?.dict ?? []) {
+    const username = group.dict?.find((d) => d.label === "Username")?.value;
+    if (username) {
+      creatorUsername = username;
+      break;
+    }
+  }
+
+  const ts = typeof entry.timestamp === "number" ? entry.timestamp : null;
+
+  return {
+    shortcode,
+    reelUrl: canonicalReelUrl(shortcode),
+    creatorUsername,
+    likedAt: ts ? new Date(ts * 1000) : null,
+    caption: caption || null,
+  };
 }
 
 /// Upserts parsed likes into the database. Existing reels (matched by
@@ -91,13 +146,24 @@ export async function importLikes(likes: ParsedLike[]): Promise<ImportResult> {
         })
       : null;
 
+    // The current export already includes caption + hashtags, so store them
+    // now. They're refreshed/confirmed later by the yt-dlp sync step.
+    const tags = parseHashtags(like.caption);
+
     await prisma.reel.create({
       data: {
         shortcode: like.shortcode,
         reelUrl: like.reelUrl,
+        caption: like.caption,
         likedAt: like.likedAt,
         creatorId: creator?.id,
         status: "PENDING",
+        hashtags: {
+          connectOrCreate: tags.map((tag) => ({
+            where: { tag },
+            create: { tag },
+          })),
+        },
       },
     });
 
