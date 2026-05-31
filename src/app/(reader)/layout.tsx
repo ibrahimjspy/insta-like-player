@@ -6,9 +6,9 @@ export default function ReaderLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col-reverse md:flex-row">
+    <div className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden md:h-screen md:max-h-none">
+      <main className="relative min-h-0 flex-1 overflow-hidden">{children}</main>
       <Sidebar />
-      <main className="flex-1 overflow-hidden">{children}</main>
     </div>
   );
 }

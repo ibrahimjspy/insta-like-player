@@ -1,15 +1,16 @@
 "use client";
 
-import { Ban, ExternalLink, Trash2, Volume2, VolumeX } from "lucide-react";
+import { Ban, ExternalLink, Heart, Trash2, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { deleteReel, recordWatch, skipReel } from "@/app/actions";
-import { FavoriteButton } from "@/components/FavoriteButton";
+import { FavoriteButtonUI, useFavorite } from "@/components/FavoriteButton";
 import { type ReelView, thumbSrc, videoSrc } from "@/lib/types";
 
 type FeedOrder = "recent" | "oldest" | "random";
 
 const MUTE_KEY = "ilp_muted";
+const DOUBLE_TAP_MS = 320;
 
 interface Props {
   initialItems: ReelView[];
@@ -19,6 +20,8 @@ interface Props {
   paginate?: boolean;
   emptyTitle?: string;
   emptyHint?: React.ReactNode;
+  /// Show the feed order bar (Recent / Oldest / Random) only when this is true.
+  onOrderBarVisibility?: (visible: boolean) => void;
 }
 
 export function ReelFeed({
@@ -28,6 +31,7 @@ export function ReelFeed({
   paginate = true,
   emptyTitle,
   emptyHint,
+  onOrderBarVisibility,
 }: Props) {
   const [items, setItems] = useState<ReelView[]>(initialItems);
   const [cursor, setCursor] = useState<string | null>(initialCursor);
@@ -85,11 +89,12 @@ export function ReelFeed({
   );
 
   if (items.length === 0) {
+    onOrderBarVisibility?.(true);
     return <EmptyFeed title={emptyTitle} hint={emptyHint} />;
   }
 
   return (
-    <div className="feed-snap no-scrollbar h-[100dvh] overflow-y-scroll bg-black">
+    <div className="feed-snap no-scrollbar h-full overflow-x-hidden overflow-y-auto bg-black">
       {items.map((reel) => (
         <ReelSlide
           key={reel.id}
@@ -98,6 +103,7 @@ export function ReelFeed({
           onToggleMute={toggleMute}
           onDelete={onDelete}
           onSkip={onSkip}
+          onOrderBarVisibility={onOrderBarVisibility}
         />
       ))}
       <Sentinel onVisible={loadMore} enabled={hasMore} loading={loading} />
@@ -111,20 +117,39 @@ function ReelSlide({
   onToggleMute,
   onDelete,
   onSkip,
+  onOrderBarVisibility,
 }: {
   reel: ReelView;
   muted: boolean;
   onToggleMute: () => void;
   onDelete: (id: string) => void;
   onSkip: (id: string) => void;
+  onOrderBarVisibility?: (visible: boolean) => void;
 }) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const watched = useRef(false);
+  const lastTapAt = useRef(0);
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { fav, toggle: toggleFav, like, pending: favoritePending } = useFavorite(
+    reel.id,
+    reel.isFavorite,
+  );
+  const [likeBurst, setLikeBurst] = useState<{ x: number; y: number; key: number } | null>(
+    null,
+  );
   /// Only attach video src near the viewport so phones over Tailscale don't
   /// open many full downloads at once (Safari looks like it's "still loading").
   const [loadVideo, setLoadVideo] = useState(false);
   const [active, setActive] = useState(false);
+
+  const syncOrderBar = useCallback(
+    (isActive: boolean, el: HTMLVideoElement | null) => {
+      if (!onOrderBarVisibility) return;
+      onOrderBarVisibility(isActive && (el?.paused ?? true));
+    },
+    [onOrderBarVisibility],
+  );
 
   useEffect(() => {
     const root = sectionRef.current;
@@ -152,30 +177,38 @@ function ReelSlide({
     const el = videoRef.current;
     if (!el || !loadVideo) return;
 
+    const root = sectionRef.current;
+    if (!root) return;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        const isActive = entry.isIntersecting && entry.intersectionRatio > 0.6;
+        const isActive = entry.isIntersecting && entry.intersectionRatio >= 0.85;
         setActive(isActive);
         if (isActive) {
           el.muted = muted;
-          el.play().catch(() => {
-            el.muted = true;
-            el.play().catch(() => undefined);
-          });
+          void el
+            .play()
+            .catch(() => {
+              el.muted = true;
+              return el.play();
+            })
+            .catch(() => undefined)
+            .finally(() => syncOrderBar(true, el));
           if (!watched.current) {
             watched.current = true;
             recordWatch(reel.id).catch(() => undefined);
           }
         } else {
           el.pause();
+          syncOrderBar(false, el);
         }
       },
-      { threshold: [0, 0.6, 1] },
+      { threshold: [0, 0.85, 1] },
     );
 
-    observer.observe(el);
+    observer.observe(root);
     return () => observer.disconnect();
-  }, [reel.id, muted, loadVideo]);
+  }, [reel.id, muted, loadVideo, syncOrderBar]);
 
   const togglePlay = () => {
     const el = videoRef.current;
@@ -184,16 +217,81 @@ function ReelSlide({
     else el.pause();
   };
 
+  const onVideoPlay = () => {
+    if (active) syncOrderBar(true, videoRef.current);
+  };
+
+  const onVideoPause = () => {
+    if (active) syncOrderBar(true, videoRef.current);
+  };
+
+  const showLikeBurst = (clientX: number, clientY: number) => {
+    const root = sectionRef.current;
+    const rect = root?.getBoundingClientRect();
+    const x = clientX - (rect?.left ?? 0);
+    const y = clientY - (rect?.top ?? 0);
+    setLikeBurst({ x, y, key: Date.now() });
+  };
+
+  const onVideoTap = (e: React.PointerEvent<HTMLVideoElement>) => {
+    const now = Date.now();
+    const sinceLast = now - lastTapAt.current;
+    lastTapAt.current = now;
+
+    if (sinceLast > 0 && sinceLast < DOUBLE_TAP_MS) {
+      if (singleTapTimer.current) {
+        clearTimeout(singleTapTimer.current);
+        singleTapTimer.current = null;
+      }
+      showLikeBurst(e.clientX, e.clientY);
+      like();
+      return;
+    }
+
+    if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+    singleTapTimer.current = setTimeout(() => {
+      singleTapTimer.current = null;
+      togglePlay();
+    }, DOUBLE_TAP_MS);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!likeBurst) return;
+    const t = setTimeout(() => setLikeBurst(null), 800);
+    return () => clearTimeout(t);
+  }, [likeBurst]);
+
   return (
     <section
       ref={sectionRef}
-      className="relative flex h-[100dvh] w-full items-center justify-center"
+      className="feed-snap-slide relative flex h-full min-h-0 w-full shrink-0 items-center justify-center overflow-hidden"
     >
       {loadVideo && !active && (
         <div className="pointer-events-none absolute z-10 text-sm text-white/50">
           Loading video…
         </div>
       )}
+      {likeBurst && (
+        <div
+          key={likeBurst.key}
+          className="pointer-events-none absolute z-30"
+          style={{ left: likeBurst.x, top: likeBurst.y, transform: "translate(-50%, -50%)" }}
+        >
+          <Heart
+            size={88}
+            fill="currentColor"
+            strokeWidth={0}
+            className="like-burst text-accent drop-shadow-lg"
+          />
+        </div>
+      )}
+
       <video
         ref={videoRef}
         src={loadVideo ? videoSrc(reel.shortcode) : undefined}
@@ -202,12 +300,14 @@ function ReelSlide({
         loop
         playsInline
         preload="none"
-        onClick={togglePlay}
+        onPointerUp={onVideoTap}
+        onPlay={onVideoPlay}
+        onPause={onVideoPause}
       />
 
-      {/* Right-side action rail */}
-      <div className="absolute bottom-28 right-3 flex flex-col items-center gap-5 md:bottom-12">
-        <FavoriteButton reelId={reel.id} initial={reel.isFavorite} />
+      {/* Right-side action rail — kept inside slide bounds (no bleed on snap) */}
+      <div className="absolute right-3 bottom-4 z-20 flex flex-col items-center gap-4 md:bottom-12">
+        <FavoriteButtonUI fav={fav} onToggle={toggleFav} pending={favoritePending} />
 
         <RailButton label={muted ? "Unmute" : "Mute"} onClick={onToggleMute}>
           {muted ? <VolumeX size={26} /> : <Volume2 size={26} />}
@@ -242,7 +342,7 @@ function ReelSlide({
       </div>
 
       {/* Bottom gradient + caption */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 pb-24 md:pb-6">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-4 pb-4">
         {reel.creator && (
           <p className="text-sm font-semibold text-white">@{reel.creator.username}</p>
         )}
@@ -301,7 +401,7 @@ function Sentinel({
   }, [onVisible, enabled]);
 
   return (
-    <div ref={ref} className="grid h-16 place-items-center text-sm text-white/50">
+    <div ref={ref} className="grid h-12 shrink-0 place-items-center text-sm text-white/50">
       {loading ? "Loading…" : enabled ? "" : "You're all caught up"}
     </div>
   );
@@ -309,7 +409,7 @@ function Sentinel({
 
 function EmptyFeed({ title, hint }: { title?: string; hint?: React.ReactNode }) {
   return (
-    <div className="grid h-[100dvh] place-items-center bg-black p-8 text-center">
+    <div className="grid h-full place-items-center bg-black p-8 text-center">
       <div className="max-w-md">
         <h2 className="text-xl font-semibold text-white">{title ?? "No reels to play yet"}</h2>
         <p className="mt-2 text-sm text-white/70">

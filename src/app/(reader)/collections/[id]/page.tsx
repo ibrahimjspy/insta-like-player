@@ -18,7 +18,7 @@ export default async function CollectionDetailPage({
   const reels = collection.reels.map((r) => r.reel);
 
   return (
-    <div className="h-[100dvh] overflow-y-auto p-5 md:p-8">
+    <div className="h-full overflow-y-auto p-5 md:p-8">
       <Link href="/collections" className="text-sm text-muted hover:text-foreground">
         ← Collections
       </Link>

@@ -20,7 +20,7 @@ export default async function SearchPage({
   ]);
 
   return (
-    <div className="h-[100dvh] overflow-y-auto p-5 md:p-8">
+    <div className="h-full overflow-y-auto p-5 md:p-8">
       <h1 className="mb-4 text-2xl font-bold">Search</h1>
       <SearchBar initialQuery={q ?? ""} />
 

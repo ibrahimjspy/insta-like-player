@@ -9,7 +9,7 @@ export default async function CollectionsPage() {
   const collections = await getCollections();
 
   return (
-    <div className="h-[100dvh] overflow-y-auto p-5 md:p-8">
+    <div className="h-full overflow-y-auto p-5 md:p-8">
       <h1 className="mb-4 text-2xl font-bold">Collections</h1>
 
       <form
