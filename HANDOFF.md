@@ -27,14 +27,23 @@ for Postgres. Tests run on Vitest.
 
 ---
 
-## 2. Current state (as of this handoff)
+## 2. Current state
 
-- ~1,005 liked reels imported from the owner's Instagram export.
-- A few hundred downloaded; the rest can be downloaded with `npm run sync`.
-- App runs as a `launchd` service on **port 7319**, reachable via Tailscale.
-- All logic is unit-tested (Vitest), lint + typecheck clean.
-- Library data (videos + database rows) is **machine-local and gitignored** —
-  it does NOT travel with the repo.
+> ⚠️ **If you're on a NEW machine, your state is FRESH/EMPTY.** The repo carries
+> only code — no library data. There is no database, no downloaded videos, and
+> no running service until you complete the setup in section 6. Don't assume any
+> reels exist yet; you must create the DB, import an export, and run a sync.
+
+What the repo gives you out of the box:
+- The full app, scripts, and tests (Vitest; lint + typecheck clean).
+- **No** library data — `data/` (videos, `liked_posts.json`, `cookies.txt`),
+  the database, and the launchd service are all **machine-local and gitignored**.
+
+For reference, the original/source machine had ~1,005 reels imported (with a
+portion downloaded) and was running as a `launchd` service on **port 7319** via
+Tailscale. A fresh machine reproduces this by following section 6 — optionally
+copying the source machine's data (section in DEPLOYMENT.md) or starting clean
+with a new export.
 
 ---
 
