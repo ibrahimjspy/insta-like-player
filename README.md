@@ -139,6 +139,12 @@ src/app/api/              Media streaming + feed + admin endpoints
 src/components/           Shared React components
 ```
 
+## Handing off to another machine / AI agent
+
+For a single self-contained context dump (cookie workflow, the download
+pipeline, current state, ops, and gotchas) suitable to hand to a new contributor
+or AI agent, see **[HANDOFF.md](./HANDOFF.md)**.
+
 ## Deploying / self-hosting
 
 To run this as an always-on personal server you can reach from your phone and
