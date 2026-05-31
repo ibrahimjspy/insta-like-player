@@ -1,6 +1,12 @@
 /// Helpers for parsing Instagram URLs and captions.
 
 const SHORTCODE_RE = /instagram\.com\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i;
+const TYPE_RE = /instagram\.com\/(reel|reels|p|tv)\//i;
+
+/// The kind of liked media, inferred from its URL path.
+/// - `reel` / `igtv` are always videos
+/// - `post` (`/p/`) is generic: a photo, a carousel, OR a video
+export type PostType = "reel" | "post" | "igtv" | "unknown";
 
 /// Extracts the shortcode (e.g. "ABC123") from any Instagram post/reel URL.
 /// Returns null if the URL isn't a recognisable Instagram media link.
@@ -9,9 +15,20 @@ export function extractShortcode(url: string): string | null {
   return match ? match[1] : null;
 }
 
-/// Normalises a reel URL to a canonical form so duplicates dedupe cleanly.
-export function canonicalReelUrl(shortcode: string): string {
-  return `https://www.instagram.com/reel/${shortcode}/`;
+/// Strips query string / fragment so we store a clean, canonical link while
+/// preserving the original path type (/reel/, /p/, /tv/).
+export function normalizeInstagramUrl(href: string): string {
+  return href.split(/[?#]/)[0];
+}
+
+/// Classifies a media URL by its path type.
+export function postTypeFromUrl(url: string): PostType {
+  const match = url.match(TYPE_RE);
+  if (!match) return "unknown";
+  const t = match[1].toLowerCase();
+  if (t === "reel" || t === "reels") return "reel";
+  if (t === "tv") return "igtv";
+  return "post";
 }
 
 /// Parses hashtags from a caption, lower-cased and without the leading '#'.

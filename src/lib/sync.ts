@@ -138,8 +138,9 @@ async function readInfo(infoFile: string | undefined): Promise<YtDlpInfo> {
   }
 }
 
-/// Detects "this content is gone" errors so we can mark UNAVAILABLE instead of
-/// FAILED (no point retrying deleted/private posts).
+/// Detects errors that mean "not worth retrying" so we mark UNAVAILABLE instead
+/// of FAILED. Covers deleted/private posts AND liked photo/carousel-image posts
+/// (a `/p/` like with no video), which should never sit in PENDING or retry.
 export function isUnavailable(message: string): boolean {
   const m = message.toLowerCase();
   return (
@@ -147,7 +148,11 @@ export function isUnavailable(message: string): boolean {
     m.includes("login required") ||
     m.includes("private") ||
     m.includes("removed") ||
-    m.includes("404")
+    m.includes("404") ||
+    m.includes("no video") ||
+    m.includes("there is no video") ||
+    m.includes("unable to extract shared data") ||
+    m.includes("no media found")
   );
 }
 
@@ -162,7 +167,9 @@ async function downloadReel(reel: {
 
   const { video, thumb, info } = await collectOutputs(reel.shortcode);
   if (!video) {
-    throw new Error("yt-dlp finished but no video file was produced");
+    // No video file means this liked post is a photo or image-only carousel.
+    // The "no video" phrasing routes it to UNAVAILABLE (see isUnavailable).
+    throw new Error("No video in this post (photo or image-only carousel)");
   }
 
   const meta = await readInfo(info);

@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 interface ImportResult {
   parsed: number;
   imported: number;
-  skippedDuplicates: number;
+  updated: number;
   skippedUnparseable: number;
 }
 
@@ -71,7 +71,7 @@ export function ImportPanel() {
         <p className="mt-3 text-sm text-muted">
           Parsed {result.parsed}, imported{" "}
           <span className="text-foreground">{result.imported}</span> new,{" "}
-          {result.skippedDuplicates} duplicates skipped. Now run a sync below.
+          {result.updated} existing refreshed. Now run a sync below.
         </p>
       )}
     </section>

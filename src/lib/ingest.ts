@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { canonicalReelUrl, extractShortcode, parseHashtags } from "@/lib/instagram";
+import { extractShortcode, normalizeInstagramUrl, parseHashtags } from "@/lib/instagram";
 
 /// A single normalised like extracted from an Instagram export.
 export interface ParsedLike {
@@ -13,7 +13,8 @@ export interface ParsedLike {
 export interface ImportResult {
   parsed: number;
   imported: number;
-  skippedDuplicates: number;
+  /// Existing reels whose URL/metadata were refreshed (download status kept).
+  updated: number;
   skippedUnparseable: number;
 }
 
@@ -59,7 +60,7 @@ export function parseLikedPosts(raw: unknown): ParsedLike[] {
       const ts = typeof item.timestamp === "number" ? item.timestamp : null;
       likes.push({
         shortcode,
-        reelUrl: canonicalReelUrl(shortcode),
+        reelUrl: normalizeInstagramUrl(href!),
         creatorUsername: title,
         likedAt: ts ? new Date(ts * 1000) : null,
         caption: null,
@@ -84,7 +85,8 @@ function parseLabelValueEntry(entry: Record<string, unknown>): ParsedLike | null
 
   const urlItem = values.find((v) => v.label === "URL" && (v.href || v.value));
   const href = urlItem?.href || urlItem?.value;
-  const shortcode = href ? extractShortcode(href) : null;
+  if (!href) return null;
+  const shortcode = extractShortcode(href);
   if (!shortcode) return null;
 
   const caption = values.find((v) => v.label === "Caption")?.value ?? null;
@@ -104,7 +106,7 @@ function parseLabelValueEntry(entry: Record<string, unknown>): ParsedLike | null
 
   return {
     shortcode,
-    reelUrl: canonicalReelUrl(shortcode),
+    reelUrl: normalizeInstagramUrl(href),
     creatorUsername,
     likedAt: ts ? new Date(ts * 1000) : null,
     caption: caption || null,
@@ -112,13 +114,14 @@ function parseLabelValueEntry(entry: Record<string, unknown>): ParsedLike | null
 }
 
 /// Upserts parsed likes into the database. Existing reels (matched by
-/// shortcode) are left untouched so re-importing an export is idempotent and
-/// never clobbers download status.
+/// shortcode) keep their download status/media, but have their canonical URL
+/// and caption refreshed — so re-importing is idempotent and also corrects the
+/// stored URL type (/reel/ vs /p/ vs /tv/) for rows imported by older versions.
 export async function importLikes(likes: ParsedLike[]): Promise<ImportResult> {
   const result: ImportResult = {
     parsed: likes.length,
     imported: 0,
-    skippedDuplicates: 0,
+    updated: 0,
     skippedUnparseable: 0,
   };
 
@@ -130,11 +133,19 @@ export async function importLikes(likes: ParsedLike[]): Promise<ImportResult> {
 
     const existing = await prisma.reel.findUnique({
       where: { shortcode: like.shortcode },
-      select: { id: true },
+      select: { id: true, caption: true },
     });
 
     if (existing) {
-      result.skippedDuplicates += 1;
+      await prisma.reel.update({
+        where: { id: existing.id },
+        data: {
+          reelUrl: like.reelUrl,
+          // Only fill caption if we didn't already have one.
+          ...(existing.caption ? {} : { caption: like.caption }),
+        },
+      });
+      result.updated += 1;
       continue;
     }
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const reelFindUnique = vi.fn();
 const reelCreate = vi.fn();
+const reelUpdate = vi.fn();
 const creatorUpsert = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -9,6 +10,7 @@ vi.mock("@/lib/db", () => ({
     reel: {
       findUnique: (...args: unknown[]) => reelFindUnique(...args),
       create: (...args: unknown[]) => reelCreate(...args),
+      update: (...args: unknown[]) => reelUpdate(...args),
     },
     creator: {
       upsert: (...args: unknown[]) => creatorUpsert(...args),
@@ -154,6 +156,7 @@ describe("importLikes", () => {
   beforeEach(() => {
     reelFindUnique.mockReset();
     reelCreate.mockReset();
+    reelUpdate.mockReset();
     creatorUpsert.mockReset();
   });
 
@@ -173,7 +176,7 @@ describe("importLikes", () => {
     const result = await importLikes([sampleLike]);
 
     expect(result.imported).toBe(1);
-    expect(result.skippedDuplicates).toBe(0);
+    expect(result.updated).toBe(0);
     expect(creatorUpsert).toHaveBeenCalledWith({
       where: { username: "nasa" },
       create: { username: "nasa" },
@@ -190,15 +193,33 @@ describe("importLikes", () => {
     );
   });
 
-  it("skips a reel that already exists (idempotent re-import)", async () => {
-    reelFindUnique.mockResolvedValue({ id: "existing" });
+  it("refreshes the URL of an existing reel without recreating it", async () => {
+    reelFindUnique.mockResolvedValue({ id: "existing", caption: "old caption" });
+    reelUpdate.mockResolvedValue({});
 
     const result = await importLikes([sampleLike]);
 
     expect(result.imported).toBe(0);
-    expect(result.skippedDuplicates).toBe(1);
+    expect(result.updated).toBe(1);
     expect(reelCreate).not.toHaveBeenCalled();
     expect(creatorUpsert).not.toHaveBeenCalled();
+    // URL refreshed; existing caption preserved (not overwritten).
+    expect(reelUpdate).toHaveBeenCalledWith({
+      where: { id: "existing" },
+      data: { reelUrl: sampleLike.reelUrl },
+    });
+  });
+
+  it("backfills caption on an existing reel that had none", async () => {
+    reelFindUnique.mockResolvedValue({ id: "existing", caption: null });
+    reelUpdate.mockResolvedValue({});
+
+    await importLikes([sampleLike]);
+
+    expect(reelUpdate).toHaveBeenCalledWith({
+      where: { id: "existing" },
+      data: { reelUrl: sampleLike.reelUrl, caption: sampleLike.caption },
+    });
   });
 
   it("creates a reel without a creator when username is null", async () => {
@@ -223,7 +244,8 @@ describe("importLikes", () => {
   });
 
   it("reports the total number parsed", async () => {
-    reelFindUnique.mockResolvedValue({ id: "existing" });
+    reelFindUnique.mockResolvedValue({ id: "existing", caption: "x" });
+    reelUpdate.mockResolvedValue({});
     const result = await importLikes([sampleLike, sampleLike]);
     expect(result.parsed).toBe(2);
   });

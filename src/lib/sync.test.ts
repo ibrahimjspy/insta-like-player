@@ -68,6 +68,11 @@ describe("isUnavailable", () => {
     expect(isUnavailable("HTTP Error 404: Not Found")).toBe(true);
   });
 
+  it("flags photo/image posts with no video", () => {
+    expect(isUnavailable("No video in this post (photo or image-only carousel)")).toBe(true);
+    expect(isUnavailable("There is no video in this post")).toBe(true);
+  });
+
   it("is case-insensitive", () => {
     expect(isUnavailable("NOT AVAILABLE")).toBe(true);
   });

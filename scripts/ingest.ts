@@ -27,7 +27,7 @@ async function main() {
   const result = await importLikes(likes);
   console.log("Import complete:");
   console.log(`  imported new:        ${result.imported}`);
-  console.log(`  skipped duplicates:  ${result.skippedDuplicates}`);
+  console.log(`  updated existing:    ${result.updated}`);
   console.log(`  skipped unparseable: ${result.skippedUnparseable}`);
   console.log("\nNext step: run `npm run sync` to download the media.");
 }

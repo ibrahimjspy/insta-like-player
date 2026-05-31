@@ -2,7 +2,15 @@ import { ReelStatus } from "@prisma/client";
 import Link from "next/link";
 
 import { deleteReel, retryReel } from "@/app/admin/actions";
+import { postTypeFromUrl } from "@/lib/instagram";
 import { getAdminReels } from "@/lib/queries";
+
+const TYPE_LABELS: Record<string, string> = {
+  reel: "Reel",
+  igtv: "IGTV",
+  post: "Post",
+  unknown: "?",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +104,7 @@ export default async function AdminReelsPage({
           <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-4 py-3">Reel</th>
+              <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Creator</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Actions</th>
@@ -121,6 +130,17 @@ export default async function AdminReelsPage({
                       {reel.failReason}
                     </p>
                   )}
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      postTypeFromUrl(reel.reelUrl) === "post"
+                        ? "bg-orange-500/15 text-orange-400"
+                        : "bg-blue-500/15 text-blue-400"
+                    }`}
+                  >
+                    {TYPE_LABELS[postTypeFromUrl(reel.reelUrl)]}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-muted">
                   {reel.creator ? `@${reel.creator.username}` : "—"}
@@ -152,7 +172,7 @@ export default async function AdminReelsPage({
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-10 text-center text-muted">
+                <td colSpan={5} className="px-4 py-10 text-center text-muted">
                   No reels match.
                 </td>
               </tr>

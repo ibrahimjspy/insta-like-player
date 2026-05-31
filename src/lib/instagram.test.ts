@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalReelUrl, extractShortcode, parseHashtags } from "@/lib/instagram";
+import {
+  extractShortcode,
+  normalizeInstagramUrl,
+  parseHashtags,
+  postTypeFromUrl,
+} from "@/lib/instagram";
 
 describe("extractShortcode", () => {
   it("extracts from a /reel/ URL", () => {
@@ -35,14 +40,33 @@ describe("extractShortcode", () => {
   });
 });
 
-describe("canonicalReelUrl", () => {
-  it("builds a canonical reel URL from a shortcode", () => {
-    expect(canonicalReelUrl("ABC123")).toBe("https://www.instagram.com/reel/ABC123/");
+describe("normalizeInstagramUrl", () => {
+  it("strips query strings and fragments, preserving the path type", () => {
+    expect(
+      normalizeInstagramUrl("https://www.instagram.com/p/ABC123/?igshid=xyz"),
+    ).toBe("https://www.instagram.com/p/ABC123/");
+    expect(normalizeInstagramUrl("https://www.instagram.com/reel/ABC123/#x")).toBe(
+      "https://www.instagram.com/reel/ABC123/",
+    );
   });
 
-  it("round-trips with extractShortcode", () => {
-    const code = "Xy_Z-9";
-    expect(extractShortcode(canonicalReelUrl(code))).toBe(code);
+  it("leaves a clean URL unchanged", () => {
+    expect(normalizeInstagramUrl("https://www.instagram.com/tv/ABC/")).toBe(
+      "https://www.instagram.com/tv/ABC/",
+    );
+  });
+});
+
+describe("postTypeFromUrl", () => {
+  it("classifies reels, posts and IGTV", () => {
+    expect(postTypeFromUrl("https://www.instagram.com/reel/ABC/")).toBe("reel");
+    expect(postTypeFromUrl("https://www.instagram.com/reels/ABC/")).toBe("reel");
+    expect(postTypeFromUrl("https://www.instagram.com/p/ABC/")).toBe("post");
+    expect(postTypeFromUrl("https://www.instagram.com/tv/ABC/")).toBe("igtv");
+  });
+
+  it("returns unknown for unrecognised URLs", () => {
+    expect(postTypeFromUrl("https://example.com/x/")).toBe("unknown");
   });
 });
 
