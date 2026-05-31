@@ -1,8 +1,15 @@
 "use client";
 
+import { Ban, Check, Play, Trash2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { addReelToCollection, removeReelFromCollection } from "@/app/actions";
+import {
+  addReelToCollection,
+  deleteReel,
+  removeReelFromCollection,
+  skipReel,
+} from "@/app/actions";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { type ReelView, thumbSrc, videoSrc } from "@/lib/types";
 
@@ -50,8 +57,8 @@ export function ReelGrid({ reels, collections, removeFromCollectionId }: Props) 
                 loading="lazy"
                 className="h-full w-full object-cover transition-transform group-hover:scale-105"
               />
-              <span className="absolute inset-0 grid place-items-center bg-black/0 text-3xl text-white/0 transition-colors group-hover:bg-black/30 group-hover:text-white/90">
-                ▶
+              <span className="absolute inset-0 grid place-items-center bg-black/0 text-white/0 transition-colors group-hover:bg-black/30 group-hover:text-white">
+                <Play size={36} fill="currentColor" />
               </span>
             </button>
 
@@ -64,18 +71,14 @@ export function ReelGrid({ reels, collections, removeFromCollectionId }: Props) 
             </div>
 
             <div className="absolute right-1.5 top-1.5">
-              <FavoriteButton reelId={reel.id} initial={reel.isFavorite} />
+              <FavoriteButton reelId={reel.id} initial={reel.isFavorite} size={20} />
             </div>
 
             {removeFromCollectionId && (
               <button
                 type="button"
                 onClick={() =>
-                  startTransition(() =>
-                    removeFromCollectionId
-                      ? void removeReelFromCollection(removeFromCollectionId, reel.id)
-                      : undefined,
-                  )
+                  startTransition(() => void removeReelFromCollection(removeFromCollectionId, reel.id))
                 }
                 className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white hover:bg-black/80"
               >
@@ -106,8 +109,16 @@ function ReelModal({
   collections?: CollectionOption[];
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [addedTo, setAddedTo] = useState<string | null>(null);
+
+  const runAndRefresh = (fn: () => Promise<void>) =>
+    startTransition(async () => {
+      await fn();
+      onClose();
+      router.refresh();
+    });
 
   return (
     <div
@@ -153,17 +164,40 @@ function ReelModal({
                     setAddedTo(c.id);
                   })
                 }
-                className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                   addedTo === c.id
                     ? "border-accent bg-accent/20 text-accent"
                     : "border-border text-white/80 hover:bg-surface-2"
                 }`}
               >
-                {addedTo === c.id ? `✓ ${c.name}` : c.name}
+                {addedTo === c.id && <Check size={13} />}
+                {c.name}
               </button>
             ))}
           </div>
         )}
+
+        <div className="mt-3 flex gap-4 text-xs text-muted">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => runAndRefresh(() => skipReel(reel.id))}
+            className="flex items-center gap-1.5 hover:text-foreground"
+          >
+            <Ban size={15} /> Don&apos;t import
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => {
+              if (confirm("Delete this reel and its downloaded video?"))
+                runAndRefresh(() => deleteReel(reel.id));
+            }}
+            className="flex items-center gap-1.5 hover:text-red-500"
+          >
+            <Trash2 size={15} /> Delete
+          </button>
+        </div>
 
         <button
           type="button"
@@ -171,7 +205,7 @@ function ReelModal({
           className="absolute -top-3 -right-3 grid h-9 w-9 place-items-center rounded-full bg-surface text-white shadow-lg hover:bg-surface-2"
           aria-label="Close"
         >
-          ✕
+          <X size={18} />
         </button>
       </div>
     </div>

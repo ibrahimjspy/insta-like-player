@@ -1,26 +1,53 @@
 "use client";
 
+import { Ban, ExternalLink, Trash2, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { recordWatch } from "@/app/actions";
+import { deleteReel, recordWatch, skipReel } from "@/app/actions";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { type ReelView, thumbSrc, videoSrc } from "@/lib/types";
 
 type FeedOrder = "recent" | "oldest" | "random";
 
+const MUTE_KEY = "ilp_muted";
+
 interface Props {
   initialItems: ReelView[];
   initialCursor: string | null;
   order: FeedOrder;
+  /// When false, the feed renders a fixed list (no infinite scroll fetch).
+  paginate?: boolean;
+  emptyTitle?: string;
+  emptyHint?: React.ReactNode;
 }
 
-export function ReelFeed({ initialItems, initialCursor, order }: Props) {
+export function ReelFeed({
+  initialItems,
+  initialCursor,
+  order,
+  paginate = true,
+  emptyTitle,
+  emptyHint,
+}: Props) {
   const [items, setItems] = useState<ReelView[]>(initialItems);
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [loading, setLoading] = useState(false);
-  const [muted, setMuted] = useState(true);
+  // Audio ON by default; remember the user's choice across sessions. Read
+  // synchronously so there's no muted→unmuted flash on first paint.
+  const [muted, setMuted] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(MUTE_KEY) === "true";
+  });
 
-  const hasMore = order !== "random" && cursor !== null;
+  const toggleMute = useCallback(() => {
+    setMuted((m) => {
+      const next = !m;
+      localStorage.setItem(MUTE_KEY, String(next));
+      return next;
+    });
+  }, []);
+
+  const hasMore = paginate && order !== "random" && cursor !== null;
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
@@ -37,8 +64,28 @@ export function ReelFeed({ initialItems, initialCursor, order }: Props) {
     }
   }, [loading, hasMore, order, cursor]);
 
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
+  const onDelete = useCallback(
+    (id: string) => {
+      removeItem(id);
+      deleteReel(id).catch(() => undefined);
+    },
+    [removeItem],
+  );
+
+  const onSkip = useCallback(
+    (id: string) => {
+      removeItem(id);
+      skipReel(id).catch(() => undefined);
+    },
+    [removeItem],
+  );
+
   if (items.length === 0) {
-    return <EmptyFeed />;
+    return <EmptyFeed title={emptyTitle} hint={emptyHint} />;
   }
 
   return (
@@ -48,7 +95,9 @@ export function ReelFeed({ initialItems, initialCursor, order }: Props) {
           key={reel.id}
           reel={reel}
           muted={muted}
-          onToggleMute={() => setMuted((m) => !m)}
+          onToggleMute={toggleMute}
+          onDelete={onDelete}
+          onSkip={onSkip}
         />
       ))}
       <Sentinel onVisible={loadMore} enabled={hasMore} loading={loading} />
@@ -60,15 +109,26 @@ function ReelSlide({
   reel,
   muted,
   onToggleMute,
+  onDelete,
+  onSkip,
 }: {
   reel: ReelView;
   muted: boolean;
   onToggleMute: () => void;
+  onDelete: (id: string) => void;
+  onSkip: (id: string) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const watched = useRef(false);
 
-  // Autoplay when this slide is the dominant one in the viewport.
+  // Keep the element's muted state in sync with the user's preference.
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
+
+  // Autoplay when this slide is the dominant one in the viewport. We try to
+  // play with sound; if the browser blocks unmuted autoplay, fall back to
+  // muted so the video still plays (a tap/keypress later restores sound).
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
@@ -76,7 +136,11 @@ function ReelSlide({
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-          el.play().catch(() => undefined);
+          el.muted = muted;
+          el.play().catch(() => {
+            el.muted = true;
+            el.play().catch(() => undefined);
+          });
           if (!watched.current) {
             watched.current = true;
             recordWatch(reel.id).catch(() => undefined);
@@ -90,7 +154,7 @@ function ReelSlide({
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [reel.id]);
+  }, [reel.id, muted]);
 
   const togglePlay = () => {
     const el = videoRef.current;
@@ -107,32 +171,45 @@ function ReelSlide({
         poster={thumbSrc(reel.shortcode)}
         className="h-full w-full object-contain"
         loop
-        muted={muted}
         playsInline
         preload="metadata"
         onClick={togglePlay}
       />
 
       {/* Right-side action rail */}
-      <div className="absolute bottom-28 right-3 flex flex-col items-center gap-5 md:bottom-10">
+      <div className="absolute bottom-28 right-3 flex flex-col items-center gap-5 md:bottom-12">
         <FavoriteButton reelId={reel.id} initial={reel.isFavorite} />
-        <button
-          type="button"
-          onClick={onToggleMute}
-          aria-label={muted ? "Unmute" : "Mute"}
-          className="text-2xl text-white/80 transition-transform active:scale-90 hover:text-white"
-        >
-          {muted ? "🔇" : "🔊"}
-        </button>
+
+        <RailButton label={muted ? "Unmute" : "Mute"} onClick={onToggleMute}>
+          {muted ? <VolumeX size={26} /> : <Volume2 size={26} />}
+        </RailButton>
+
         <a
           href={reel.reelUrl}
           target="_blank"
           rel="noreferrer"
           aria-label="Open on Instagram"
-          className="text-xl text-white/80 transition-transform active:scale-90 hover:text-white"
+          className="grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white"
         >
-          ↗
+          <ExternalLink size={24} />
         </a>
+
+        <RailButton
+          label="Don't import (hide and never re-download)"
+          onClick={() => onSkip(reel.id)}
+        >
+          <Ban size={24} />
+        </RailButton>
+
+        <RailButton
+          label="Delete reel"
+          onClick={() => {
+            if (confirm("Delete this reel and its downloaded video?")) onDelete(reel.id);
+          }}
+          className="hover:text-red-500"
+        >
+          <Trash2 size={24} />
+        </RailButton>
       </div>
 
       {/* Bottom gradient + caption */}
@@ -145,6 +222,30 @@ function ReelSlide({
         )}
       </div>
     </section>
+  );
+}
+
+function RailButton({
+  label,
+  onClick,
+  className = "",
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={`grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white ${className}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -177,17 +278,21 @@ function Sentinel({
   );
 }
 
-function EmptyFeed() {
+function EmptyFeed({ title, hint }: { title?: string; hint?: React.ReactNode }) {
   return (
     <div className="grid h-[100dvh] place-items-center bg-black p-8 text-center">
       <div className="max-w-md">
-        <h2 className="text-xl font-semibold text-white">No reels to play yet</h2>
+        <h2 className="text-xl font-semibold text-white">{title ?? "No reels to play yet"}</h2>
         <p className="mt-2 text-sm text-white/70">
-          Import your Instagram likes export and download the media from the{" "}
-          <a href="/admin" className="text-accent underline">
-            Admin
-          </a>{" "}
-          page to start building your library.
+          {hint ?? (
+            <>
+              Import your Instagram likes export and download the media from the{" "}
+              <a href="/admin" className="text-accent underline">
+                Admin
+              </a>{" "}
+              page to start building your library.
+            </>
+          )}
         </p>
       </div>
     </div>

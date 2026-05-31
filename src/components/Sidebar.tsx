@@ -1,13 +1,14 @@
 "use client";
 
+import { Heart, Library, Play, Search, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/", label: "Feed", icon: "▶" },
-  { href: "/search", label: "Search", icon: "⌕" },
-  { href: "/collections", label: "Collections", icon: "▤" },
-  { href: "/favorites", label: "Favorites", icon: "♥" },
+  { href: "/", label: "Feed", Icon: Play },
+  { href: "/search", label: "Search", Icon: Search },
+  { href: "/collections", label: "Collections", Icon: Library },
+  { href: "/favorites", label: "Favorites", Icon: Heart },
 ];
 
 export function Sidebar() {
@@ -37,7 +38,7 @@ export function Sidebar() {
               : "text-muted hover:bg-surface-2 hover:text-foreground"
           }`}
         >
-          <span className="text-base">{link.icon}</span>
+          <link.Icon size={20} />
           <span>{link.label}</span>
         </Link>
       ))}
@@ -48,7 +49,7 @@ export function Sidebar() {
         href="/admin"
         className="flex items-center justify-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground md:justify-start"
       >
-        <span className="text-base">⚙</span>
+        <Settings size={20} />
         <span>Admin</span>
       </Link>
     </aside>

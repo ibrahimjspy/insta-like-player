@@ -92,4 +92,5 @@ enum ReelStatus {
   DOWNLOADED
   FAILED
   UNAVAILABLE
+  SKIPPED
 }

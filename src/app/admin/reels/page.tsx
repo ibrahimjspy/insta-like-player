@@ -12,6 +12,7 @@ const STATUSES: (ReelStatus | "ALL")[] = [
   "DOWNLOADED",
   "FAILED",
   "UNAVAILABLE",
+  "SKIPPED",
 ];
 
 const STATUS_STYLES: Record<ReelStatus, string> = {
@@ -19,6 +20,7 @@ const STATUS_STYLES: Record<ReelStatus, string> = {
   DOWNLOADED: "bg-green-500/15 text-green-400",
   FAILED: "bg-red-500/15 text-red-400",
   UNAVAILABLE: "bg-zinc-500/15 text-zinc-400",
+  SKIPPED: "bg-zinc-500/15 text-zinc-400",
 };
 
 export default async function AdminReelsPage({

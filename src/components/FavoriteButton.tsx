@@ -1,5 +1,6 @@
 "use client";
 
+import { Heart } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import { toggleFavorite } from "@/app/actions";
@@ -7,10 +8,12 @@ import { toggleFavorite } from "@/app/actions";
 export function FavoriteButton({
   reelId,
   initial,
+  size = 26,
   className = "",
 }: {
   reelId: string;
   initial: boolean;
+  size?: number;
   className?: string;
 }) {
   const [fav, setFav] = useState(initial);
@@ -37,11 +40,11 @@ export function FavoriteButton({
       disabled={pending}
       aria-pressed={fav}
       aria-label={fav ? "Remove from favorites" : "Add to favorites"}
-      className={`grid place-items-center rounded-full transition-transform active:scale-90 ${
-        fav ? "text-accent" : "text-white/80 hover:text-white"
+      className={`grid place-items-center transition-transform active:scale-90 ${
+        fav ? "text-accent" : "text-white/90 hover:text-white"
       } ${className}`}
     >
-      <span className="text-2xl leading-none">{fav ? "♥" : "♡"}</span>
+      <Heart size={size} fill={fav ? "currentColor" : "none"} strokeWidth={2} />
     </button>
   );
 }
