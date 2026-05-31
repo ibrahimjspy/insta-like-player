@@ -51,6 +51,7 @@ export function buildYtDlpArgs(
   url: string,
   outputTemplate: string,
   cookiesFile?: string,
+  retries: number = config.sync.maxRetries,
 ): string[] {
   const args = [
     url,
@@ -65,7 +66,7 @@ export function buildYtDlpArgs(
     "--merge-output-format",
     "mp4",
     "--retries",
-    "3",
+    String(retries),
   ];
   if (cookiesFile) {
     args.push("--cookies", cookiesFile);

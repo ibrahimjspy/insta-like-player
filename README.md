@@ -98,8 +98,7 @@ typed module at `src/lib/config.ts`:
 | `FEED_PAGE_SIZE`     | `10`                   | Reels loaded per feed page                   |
 | `YTDLP_PATH`         | `yt-dlp`               | Path to the yt-dlp binary                    |
 | `YTDLP_COOKIES_FILE` | _(unset)_              | Optional Netscape cookies.txt for reliability |
-| `SYNC_CONCURRENCY`   | `1`                    | Parallel downloads                           |
-| `SYNC_RATE_LIMIT_MS` | `4000`                 | Delay between downloads (be polite)          |
+| `SYNC_RATE_LIMIT_MS` | `4000`                 | Delay between (sequential) downloads (be polite) |
 | `SYNC_MAX_RETRIES`   | `3`                    | Retries per reel                             |
 
 ### yt-dlp cookies (optional but recommended)

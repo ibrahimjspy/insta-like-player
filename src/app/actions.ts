@@ -1,23 +1,9 @@
 "use server";
 
-import { promises as fs } from "node:fs";
-
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
-import { resolveMediaPath } from "@/lib/media";
-
-/// Removes a reel's downloaded media files from disk (best-effort).
-async function deleteReelMedia(reel: {
-  videoPath: string | null;
-  thumbnailPath: string | null;
-}): Promise<void> {
-  for (const name of [reel.videoPath, reel.thumbnailPath]) {
-    if (!name) continue;
-    const path = resolveMediaPath(name);
-    if (path) await fs.unlink(path).catch(() => undefined);
-  }
-}
+import { deleteMediaFiles } from "@/lib/media";
 
 /// Toggles a reel's favorite flag. Returns the new value.
 export async function toggleFavorite(reelId: string): Promise<boolean> {
@@ -45,7 +31,7 @@ export async function deleteReel(reelId: string): Promise<void> {
     where: { id: reelId },
     select: { videoPath: true, thumbnailPath: true },
   });
-  if (reel) await deleteReelMedia(reel);
+  if (reel) await deleteMediaFiles([reel.videoPath, reel.thumbnailPath]);
 
   await prisma.reel.delete({ where: { id: reelId } }).catch(() => undefined);
   revalidatePath("/");
@@ -59,7 +45,7 @@ export async function skipReel(reelId: string): Promise<void> {
     where: { id: reelId },
     select: { videoPath: true, thumbnailPath: true },
   });
-  if (reel) await deleteReelMedia(reel);
+  if (reel) await deleteMediaFiles([reel.videoPath, reel.thumbnailPath]);
 
   await prisma.reel.update({
     where: { id: reelId },

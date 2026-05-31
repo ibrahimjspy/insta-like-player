@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import { Readable } from "node:stream";
 
 import { prisma } from "@/lib/db";
-import { contentTypeFor, resolveMediaPath } from "@/lib/media";
+import { contentTypeFor, parseByteRange, resolveMediaPath } from "@/lib/media";
 
 export const runtime = "nodejs";
 
@@ -35,21 +35,28 @@ export async function GET(
 
   // Range requests power video seeking and efficient streaming.
   if (range && type === "video") {
-    const match = /bytes=(\d*)-(\d*)/.exec(range);
-    const start = match?.[1] ? parseInt(match[1], 10) : 0;
-    const end = match?.[2] ? parseInt(match[2], 10) : stat.size - 1;
-    const chunkSize = end - start + 1;
+    const parsed = parseByteRange(range, stat.size);
 
-    const stream = createReadStream(absolute, { start, end });
-    return new Response(Readable.toWeb(stream) as ReadableStream, {
-      status: 206,
-      headers: {
-        "Content-Type": mime,
-        "Content-Length": String(chunkSize),
-        "Content-Range": `bytes ${start}-${end}/${stat.size}`,
-        "Accept-Ranges": "bytes",
-      },
-    });
+    if (parsed?.kind === "unsatisfiable") {
+      return new Response("Requested Range Not Satisfiable", {
+        status: 416,
+        headers: { "Content-Range": `bytes */${stat.size}` },
+      });
+    }
+
+    if (parsed?.kind === "ok") {
+      const { start, end } = parsed;
+      const stream = createReadStream(absolute, { start, end });
+      return new Response(Readable.toWeb(stream) as ReadableStream, {
+        status: 206,
+        headers: {
+          "Content-Type": mime,
+          "Content-Length": String(end - start + 1),
+          "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+          "Accept-Ranges": "bytes",
+        },
+      });
+    }
   }
 
   const stream = createReadStream(absolute);

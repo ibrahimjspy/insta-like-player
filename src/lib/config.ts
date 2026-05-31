@@ -18,7 +18,6 @@ const schema = z.object({
   FEED_PAGE_SIZE: z.coerce.number().int().positive().default(10),
   YTDLP_PATH: z.string().default("yt-dlp"),
   YTDLP_COOKIES_FILE: z.string().optional(),
-  SYNC_CONCURRENCY: z.coerce.number().int().positive().default(1),
   SYNC_RATE_LIMIT_MS: z.coerce.number().int().nonnegative().default(4000),
   SYNC_MAX_RETRIES: z.coerce.number().int().nonnegative().default(3),
 });
@@ -37,7 +36,8 @@ export const config = {
     cookiesFile: parsed.YTDLP_COOKIES_FILE,
   },
   sync: {
-    concurrency: parsed.SYNC_CONCURRENCY,
+    // Downloads run sequentially (one at a time) to stay polite to Instagram;
+    // pacing is controlled by rateLimitMs rather than parallelism.
     rateLimitMs: parsed.SYNC_RATE_LIMIT_MS,
     maxRetries: parsed.SYNC_MAX_RETRIES,
   },

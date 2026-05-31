@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { config } from "@/lib/config";
-import { contentTypeFor, resolveMediaPath, thumbUrl, videoUrl } from "@/lib/media";
+import { contentTypeFor, parseByteRange, resolveMediaPath } from "@/lib/media";
 
 describe("contentTypeFor", () => {
   it("maps known video extensions", () => {
@@ -51,9 +51,39 @@ describe("resolveMediaPath", () => {
   });
 });
 
-describe("media url builders", () => {
-  it("builds video and thumbnail URLs by shortcode", () => {
-    expect(videoUrl("ABC123")).toBe("/api/media/video/ABC123");
-    expect(thumbUrl("ABC123")).toBe("/api/media/thumb/ABC123");
+describe("parseByteRange", () => {
+  const SIZE = 1000;
+
+  it("returns null when the header isn't a byte range", () => {
+    expect(parseByteRange("items=0-10", SIZE)).toBeNull();
+  });
+
+  it("parses a normal range", () => {
+    expect(parseByteRange("bytes=0-499", SIZE)).toEqual({
+      kind: "ok",
+      start: 0,
+      end: 499,
+    });
+  });
+
+  it("defaults the end to the last byte (open-ended range)", () => {
+    expect(parseByteRange("bytes=200-", SIZE)).toEqual({
+      kind: "ok",
+      start: 200,
+      end: 999,
+    });
+  });
+
+  it("clamps an end that exceeds the file size", () => {
+    expect(parseByteRange("bytes=0-99999", SIZE)).toEqual({
+      kind: "ok",
+      start: 0,
+      end: 999,
+    });
+  });
+
+  it("marks a start beyond EOF as unsatisfiable", () => {
+    expect(parseByteRange("bytes=2000-3000", SIZE)).toEqual({ kind: "unsatisfiable" });
+    expect(parseByteRange(`bytes=${SIZE}-`, SIZE)).toEqual({ kind: "unsatisfiable" });
   });
 });

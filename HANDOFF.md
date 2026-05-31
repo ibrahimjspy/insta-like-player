@@ -90,9 +90,9 @@ The sync worker passes this to yt-dlp via `--cookies` (see
 - Logging out of that browser session, or changing the password, invalidates it.
 - Automated bulk downloading on a **main account** carries mild risk
   (rate-limit / checkpoint, rarely a ban). Mitigate with the polite defaults:
-  `SYNC_CONCURRENCY=1`, `SYNC_RATE_LIMIT_MS` ≥ 4000 (we used 2000–6000), and
-  downloading in batches rather than thousands at once. Downloads are read-only
-  traffic; the app never likes/follows/posts.
+  sequential downloads (one at a time) with `SYNC_RATE_LIMIT_MS` ≥ 4000 (we used
+  2000–6000), and downloading in batches rather than thousands at once. Downloads
+  are read-only traffic; the app never likes/follows/posts.
 
 ---
 
