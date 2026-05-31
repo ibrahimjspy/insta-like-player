@@ -32,6 +32,16 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# downloaded reel media + Instagram exports + cookies (personal data)
+/data
+*.info.json
+liked_posts.json
+cookies.txt
+
+# prisma generated client
+/generated
 
 # vercel
 .vercel

@@ -1,0 +1,95 @@
+// Prisma schema for Insta Like Player.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// A reel author. One creator has many liked reels.
+model Creator {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  reels     Reel[]
+  createdAt DateTime @default(now())
+}
+
+/// A single liked reel. Starts as PENDING after import, becomes DOWNLOADED
+/// once the sync worker has fetched the media via yt-dlp.
+model Reel {
+  id            String     @id @default(uuid())
+  shortcode     String     @unique
+  reelUrl       String     @unique
+  caption       String?
+  creatorId     String?
+  creator       Creator?   @relation(fields: [creatorId], references: [id])
+  thumbnailPath String?
+  videoPath     String?
+  durationSec   Int?
+  width         Int?
+  height        Int?
+  likedAt       DateTime?
+  status        ReelStatus @default(PENDING)
+  isFavorite    Boolean    @default(false)
+  failReason    String?
+  downloadedAt  DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  hashtags    Hashtag[]        @relation("ReelHashtags")
+  collections CollectionReel[]
+  history     WatchHistory[]
+
+  @@index([likedAt])
+  @@index([status])
+  @@index([isFavorite])
+}
+
+/// A hashtag parsed from a reel caption. Many-to-many with reels.
+model Hashtag {
+  id    String @id @default(uuid())
+  tag   String @unique
+  reels Reel[] @relation("ReelHashtags")
+}
+
+/// A user-defined collection (e.g. "Funny", "Programming").
+model Collection {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  reels       CollectionReel[]
+}
+
+/// Join table between collections and reels.
+model CollectionReel {
+  collectionId String
+  reelId       String
+  addedAt      DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  reel       Reel       @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, reelId])
+}
+
+/// Records playback so the reader can show history and resume position.
+model WatchHistory {
+  id          String   @id @default(uuid())
+  reelId      String
+  reel        Reel     @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  watchedAt   DateTime @default(now())
+  positionSec Int      @default(0)
+
+  @@index([watchedAt])
+}
+
+enum ReelStatus {
+  PENDING
+  DOWNLOADED
+  FAILED
+  UNAVAILABLE
+}
