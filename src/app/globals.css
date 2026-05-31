@@ -40,16 +40,21 @@ body {
   display: none;
 }
 
-/* Vertical, full-height snap feed (TikTok-style). */
+/* Vertical, full-height snap feed (TikTok / Reels style). */
 .feed-snap {
   scroll-snap-type: y mandatory;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
+  overscroll-behavior-y: none;
   touch-action: pan-y;
+  /* Promote scroller for smoother momentum on mobile GPUs */
+  transform: translateZ(0);
 }
 .feed-snap-slide {
   scroll-snap-align: start;
+  /* Stop at every reel during a fling — prevents skipping multiple clips */
   scroll-snap-stop: always;
+  contain: layout style;
+  transform: translateZ(0);
 }
 
 @keyframes like-burst {

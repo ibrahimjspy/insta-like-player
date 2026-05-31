@@ -4,6 +4,8 @@ import { Heart, Library, Play, Search, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useReaderChrome } from "@/components/ReaderChromeContext";
+
 const LINKS = [
   { href: "/", label: "Feed", Icon: Play },
   { href: "/search", label: "Search", Icon: Search },
@@ -13,44 +15,43 @@ const LINKS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { feedPausedChrome } = useReaderChrome();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  return (
-    <aside className="flex shrink-0 flex-row items-center gap-0.5 border-t border-border bg-surface px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 md:h-screen md:w-60 md:flex-col md:gap-2 md:border-r md:border-t-0 md:p-5">
-      <Link
-        href="/"
-        className="mb-0 hidden text-lg font-bold tracking-tight md:mb-4 md:block"
-      >
-        <span className="bg-gradient-to-r from-accent to-accent-2 bg-clip-text text-transparent">
-          Insta Like Player
-        </span>
-      </Link>
+  /// Feed: overlay only while paused. Other routes: always pinned to bottom.
+  const onFeed = pathname === "/";
+  const showBar = !onFeed || feedPausedChrome;
 
+  return (
+    <aside
+      className={`fixed inset-x-0 bottom-0 z-40 flex flex-row items-center gap-0.5 border-t border-border bg-surface/95 px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur transition-transform duration-200 ease-out ${
+        showBar ? "translate-y-0" : "pointer-events-none translate-y-full"
+      }`}
+      aria-hidden={!showBar}
+    >
       {LINKS.map((link) => (
         <Link
           key={link.href}
           href={link.href}
-          className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-2 text-xs font-medium transition-colors md:flex-none md:flex-row md:justify-start md:gap-3 md:px-4 md:py-2.5 md:text-sm ${
+          className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-2 text-xs font-medium transition-colors ${
             isActive(link.href)
               ? "bg-surface-2 text-foreground"
               : "text-muted hover:bg-surface-2 hover:text-foreground"
           }`}
         >
-          <link.Icon size={22} className="shrink-0 md:size-5" />
-          <span className="max-w-full truncate md:text-sm">{link.label}</span>
+          <link.Icon size={22} className="shrink-0" />
+          <span className="max-w-full truncate">{link.label}</span>
         </Link>
       ))}
 
-      <div className="hidden flex-1 md:block" />
-
       <Link
         href="/admin"
-        className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground md:flex-row md:justify-start md:gap-3 md:px-4 md:py-2.5 md:text-sm"
+        className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
       >
-        <Settings size={22} className="shrink-0 md:size-5" />
-        <span className="truncate md:text-sm">Admin</span>
+        <Settings size={22} className="shrink-0" />
+        <span className="truncate">Admin</span>
       </Link>
     </aside>
   );

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { OrderSelect } from "@/components/OrderSelect";
+import { useReaderChrome } from "@/components/ReaderChromeContext";
 import { ReelFeed } from "@/components/ReelFeed";
 import type { ReelView } from "@/lib/types";
 import type { FeedOrder } from "@/lib/queries";
@@ -14,17 +15,28 @@ interface Props {
 }
 
 export function FeedPageClient({ order, initialItems, initialCursor }: Props) {
+  const { setFeedPausedChrome } = useReaderChrome();
   const [showOrderBar, setShowOrderBar] = useState(initialItems.length === 0);
 
-  const onOrderBarVisibility = useCallback((visible: boolean) => {
-    setShowOrderBar(visible);
-  }, []);
+  const onPausedChromeVisibility = useCallback(
+    (visible: boolean) => {
+      setShowOrderBar(visible);
+      setFeedPausedChrome(visible);
+    },
+    [setFeedPausedChrome],
+  );
+
+  useEffect(() => {
+    if (initialItems.length === 0) setFeedPausedChrome(true);
+  }, [initialItems.length, setFeedPausedChrome]);
 
   return (
     <div className="relative h-full">
       <div
-        className={`absolute inset-x-0 top-0 z-10 flex justify-center pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-200 ${
-          showOrderBar ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        className={`absolute inset-x-0 top-0 z-50 flex justify-center pt-[max(0.75rem,env(safe-area-inset-top))] transition-transform duration-200 ease-out ${
+          showOrderBar
+            ? "pointer-events-auto translate-y-0"
+            : "pointer-events-none -translate-y-full"
         }`}
         aria-hidden={!showOrderBar}
       >
@@ -35,7 +47,7 @@ export function FeedPageClient({ order, initialItems, initialCursor }: Props) {
         initialItems={initialItems}
         initialCursor={initialCursor}
         order={order}
-        onOrderBarVisibility={onOrderBarVisibility}
+        onOrderBarVisibility={onPausedChromeVisibility}
       />
     </div>
   );

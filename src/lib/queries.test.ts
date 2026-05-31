@@ -69,6 +69,16 @@ describe("getFeed (random)", () => {
 
     expect(queryRaw).toHaveBeenCalled();
     expect(page.items).toHaveLength(2);
+    expect(page.nextCursor).toBe("more");
+  });
+
+  it("returns null cursor when the library is empty", async () => {
+    queryRaw.mockResolvedValue([]);
+    reelFindMany.mockResolvedValue([]);
+
+    const page = await getFeed({ order: "random", take: 2 });
+
+    expect(page.items).toHaveLength(0);
     expect(page.nextCursor).toBeNull();
   });
 });

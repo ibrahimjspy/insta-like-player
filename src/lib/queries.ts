@@ -29,7 +29,7 @@ export interface FeedPage {
 }
 
 /// Returns a page of playable (DOWNLOADED) reels for the infinite feed.
-/// Cursor pagination is used for recent/oldest; random uses offset shuffling.
+/// Cursor pagination for recent/oldest; random returns a fresh shuffled batch each request (infinite).
 export async function getFeed(params: {
   order?: FeedOrder;
   cursor?: string | null;
@@ -46,7 +46,8 @@ export async function getFeed(params: {
       where: { id: { in: rows.map((r) => r.id) } },
       select: reelCardSelect,
     });
-    return { items, nextCursor: null };
+    // Signal infinite scroll — each request is a fresh random batch (repeats OK).
+    return { items, nextCursor: items.length > 0 ? "more" : null };
   }
 
   const direction = order === "oldest" ? "asc" : "desc";
