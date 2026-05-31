@@ -28,7 +28,21 @@ npm run sync -- --retry                 # also re-attempt FAILED reels
 npm run db:up        # start Postgres (docker compose)
 npm run db:push      # apply Prisma schema
 npm run db:studio    # Prisma Studio
+
+npm run serve                       # prod server on port 7319 (all interfaces)
+bash scripts/install-service.sh     # always-on launchd agent (auto-start/restart)
+bash scripts/uninstall-service.sh   # remove the launchd agent
 ```
+
+## Deployment (self-hosted, private)
+
+Intended deployment is **local + Tailscale**, not a cloud platform (the sync
+worker needs yt-dlp + a real disk, which serverless hosts like Vercel can't
+provide). The app runs as a `launchd` agent on **port 7319** and is exposed to
+the user's private tailnet via `tailscale serve`. Full instructions live in
+[DEPLOYMENT.md](./DEPLOYMENT.md). Library data (media + DB) is per-machine and
+gitignored; moving to a new Mac means copying `data/media` + a pg_dump, or
+re-running ingest/sync.
 
 After editing files, run `npm run lint` and (for type safety) `npm run build`
 or `npx tsc --noEmit`. Run `npm test` after touching anything in `src/lib`.

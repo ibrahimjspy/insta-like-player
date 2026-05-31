@@ -123,6 +123,7 @@ logged-in browser session (e.g. with a "Get cookies.txt" extension), then set
 | `npm run db:down`    | Stop the Postgres container              |
 | `npm run db:push`    | Apply the Prisma schema to the database  |
 | `npm run db:studio`  | Open Prisma Studio                       |
+| `npm run serve`      | Production server on port 7319 (all interfaces) |
 
 ## Project structure
 
@@ -136,6 +137,20 @@ src/app/(reader)/         Reader UI: feed, search, collections, favorites
 src/app/admin/            Admin UI: dashboard, reels table
 src/app/api/              Media streaming + feed + admin endpoints
 src/components/           Shared React components
+```
+
+## Deploying / self-hosting
+
+To run this as an always-on personal server you can reach from your phone and
+other devices over a private [Tailscale](https://tailscale.com) network (no
+cloud, no exposed data, free), see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+
+Quick version:
+
+```bash
+npm run build
+bash scripts/install-service.sh        # always-on launchd service on port 7319
+tailscale serve --bg 7319              # private HTTPS URL for all your devices
 ```
 
 ## Testing
