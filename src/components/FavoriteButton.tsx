@@ -66,7 +66,7 @@ export function FavoriteButtonUI({
       aria-pressed={fav}
       aria-label={fav ? "Remove from favorites" : "Add to favorites"}
       className={`grid place-items-center transition-transform active:scale-90 ${
-        fav ? "text-accent" : "text-white/90 hover:text-white"
+        fav ? "text-like" : "text-white/90 hover:text-white"
       } ${className}`}
     >
       <Heart size={size} fill={fav ? "currentColor" : "none"} strokeWidth={2} />

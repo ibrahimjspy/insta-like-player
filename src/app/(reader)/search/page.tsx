@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { ReelGrid } from "@/components/ReelGrid";
 import { SearchBar } from "@/components/SearchBar";
+import { FilterPill } from "@/components/ui/FilterPill";
+import { PageHeader, ReaderPage } from "@/components/ui/PageHeader";
 import { getCollections, getCreatorsWithCounts, searchReels } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -20,49 +22,58 @@ export default async function SearchPage({
   ]);
 
   return (
-    <div className="h-full overflow-y-auto p-5 md:p-8">
-      <h1 className="mb-4 text-2xl font-bold">Search</h1>
-      <SearchBar initialQuery={q ?? ""} />
+    <ReaderPage>
+      <PageHeader
+        title="Search"
+        description="Find reels by caption, creator, or hashtag across your library."
+      />
+
+      <div className="mt-8">
+        <SearchBar initialQuery={q ?? ""} />
+      </div>
 
       {creators.length > 0 && (
-        <div className="mt-5">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-            Filter by creator
-          </p>
+        <section className="mt-8">
+          <h2 className="label-caps mb-3">Creators</h2>
           <div className="flex flex-wrap gap-2">
             {creators.slice(0, 40).map((c) => (
-              <Link
+              <FilterPill
                 key={c.username}
                 href={`/search?creator=${encodeURIComponent(c.username)}`}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  creator === c.username
-                    ? "border-accent bg-accent/20 text-accent"
-                    : "border-border text-muted hover:bg-surface-2 hover:text-foreground"
-                }`}
+                active={creator === c.username}
               >
-                @{c.username} <span className="opacity-60">({c.count})</span>
-              </Link>
+                @{c.username}
+                <span className="ml-1 opacity-50">{c.count}</span>
+              </FilterPill>
             ))}
           </div>
-        </div>
+          {creator && (
+            <Link
+              href="/search"
+              className="mt-3 inline-block text-sm text-muted hover:text-foreground"
+            >
+              Clear creator filter
+            </Link>
+          )}
+        </section>
       )}
 
-      <div className="mt-6">
+      <section className="mt-10">
         {q || creator ? (
           <>
-            <p className="mb-3 text-sm text-muted">
+            <p className="mb-4 text-sm text-muted">
               {results.length} result{results.length === 1 ? "" : "s"}
               {creator ? ` from @${creator}` : ""}
-              {q ? ` for “${q}”` : ""}
+              {q ? ` matching “${q}”` : ""}
             </p>
             <ReelGrid reels={results} collections={collections} />
           </>
         ) : (
-          <p className="text-sm text-muted">
-            Search your liked reels by caption, creator, or hashtag.
+          <p className="text-sm leading-relaxed text-muted">
+            Enter a query or pick a creator to browse your downloaded reels.
           </p>
         )}
-      </div>
-    </div>
+      </section>
+    </ReaderPage>
   );
 }

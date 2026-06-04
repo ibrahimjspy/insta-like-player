@@ -646,7 +646,7 @@ function ReelSlide({
             size={88}
             fill="currentColor"
             strokeWidth={0}
-            className="like-burst text-accent drop-shadow-lg"
+            className="like-burst text-like drop-shadow-lg"
           />
         </div>
       )}
@@ -761,7 +761,10 @@ function EmptyFeed({ title, hint }: { title?: string; hint?: React.ReactNode }) 
           {hint ?? (
             <>
               Import your Instagram likes export and download the media from the{" "}
-              <a href="/admin" className="text-accent underline">
+              <a
+                href="/admin"
+                className="font-medium text-foreground-secondary underline underline-offset-2 hover:text-foreground"
+              >
                 Admin
               </a>{" "}
               page to start building your library.

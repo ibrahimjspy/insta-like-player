@@ -166,8 +166,8 @@ function ReelModal({
                 }
                 className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                   addedTo === c.id
-                    ? "border-accent bg-accent/20 text-accent"
-                    : "border-border text-white/80 hover:bg-surface-2"
+                    ? "border-border-strong bg-white/15 text-white"
+                    : "border-white/15 text-white/80 hover:border-white/25 hover:bg-white/10"
                 }`}
               >
                 {addedTo === c.id && <Check size={13} />}

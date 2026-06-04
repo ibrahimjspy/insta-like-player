@@ -1,7 +1,11 @@
 "use client";
 
+import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export function SearchBar({ initialQuery = "" }: { initialQuery?: string }) {
   const router = useRouter();
@@ -14,20 +18,24 @@ export function SearchBar({ initialQuery = "" }: { initialQuery?: string }) {
   };
 
   return (
-    <form onSubmit={submit} className="relative">
-      <input
-        type="search"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Search captions, creators, #hashtags…"
-        className="w-full rounded-full border border-border bg-surface px-5 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted focus:border-accent"
-      />
-      <button
-        type="submit"
-        className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
-      >
+    <form onSubmit={submit} className="flex gap-2">
+      <div className="relative flex-1">
+        <Search
+          size={18}
+          strokeWidth={1.75}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+        />
+        <Input
+          type="search"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Captions, creators, hashtags…"
+          className="pl-10"
+        />
+      </div>
+      <Button type="submit" variant="primary" className="shrink-0">
         Search
-      </button>
+      </Button>
     </form>
   );
 }

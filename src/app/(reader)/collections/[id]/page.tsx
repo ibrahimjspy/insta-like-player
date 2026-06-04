@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ReelGrid } from "@/components/ReelGrid";
+import { ReaderPage } from "@/components/ui/PageHeader";
 import { getCollection } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -18,18 +19,27 @@ export default async function CollectionDetailPage({
   const reels = collection.reels.map((r) => r.reel);
 
   return (
-    <div className="h-full overflow-y-auto p-5 md:p-8">
-      <Link href="/collections" className="text-sm text-muted hover:text-foreground">
+    <ReaderPage>
+      <Link
+        href="/collections"
+        className="inline-flex items-center text-sm font-medium text-muted transition-colors hover:text-foreground"
+      >
         ← Collections
       </Link>
-      <h1 className="mt-2 text-2xl font-bold">{collection.name}</h1>
+      <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
+        {collection.name}
+      </h1>
       {collection.description && (
-        <p className="mt-1 text-sm text-muted">{collection.description}</p>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+          {collection.description}
+        </p>
       )}
-      <p className="mb-6 mt-2 text-sm text-muted">
+      <p className="mt-2 label-caps">
         {reels.length} reel{reels.length === 1 ? "" : "s"}
       </p>
-      <ReelGrid reels={reels} removeFromCollectionId={collection.id} />
-    </div>
+      <div className="mt-8">
+        <ReelGrid reels={reels} removeFromCollectionId={collection.id} />
+      </div>
+    </ReaderPage>
   );
 }

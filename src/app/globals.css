@@ -1,27 +1,72 @@
 @import "tailwindcss";
 
+/* ── Design tokens (obsidian / platinum) ─────────────────────────────────── */
 :root {
-  --background: #0a0a0b;
-  --surface: #141417;
-  --surface-2: #1d1d22;
-  --border: #2a2a30;
-  --foreground: #f5f5f7;
-  --muted: #9a9aa5;
-  --accent: #e1306c; /* Instagram-ish magenta */
-  --accent-2: #8a3ab9;
+  --background: #070708;
+  --background-subtle: #0c0c0f;
+  --surface: #111114;
+  --surface-elevated: #18181d;
+  --surface-hover: #1f1f24;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --foreground: #f4f4f5;
+  --foreground-secondary: #d4d4d8;
+  --muted: #71717a;
+  --muted-subtle: #52525b;
+  --accent: #fafafa;
+  --accent-muted: #a1a1aa;
+  --accent-subtle: rgba(250, 250, 250, 0.08);
+  --ring: rgba(250, 250, 250, 0.35);
+  --like: #fb7185;
+  --success: #4ade80;
+  --success-muted: rgba(74, 222, 128, 0.12);
+  --warning: #fbbf24;
+  --warning-muted: rgba(251, 191, 36, 0.12);
+  --danger: #f87171;
+  --danger-muted: rgba(248, 113, 113, 0.12);
+  --info: #60a5fa;
+  --info-muted: rgba(96, 165, 250, 0.12);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 40px -12px rgba(0, 0, 0, 0.55);
+  --shadow-elevated: 0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 24px 64px -16px rgba(0, 0, 0, 0.7);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-background-subtle: var(--background-subtle);
   --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-hover: var(--surface-hover);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
   --color-muted: var(--muted);
+  --color-muted-subtle: var(--muted-subtle);
   --color-accent: var(--accent);
-  --color-accent-2: var(--accent-2);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-accent-muted: var(--accent-muted);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-ring: var(--ring);
+  --color-like: var(--like);
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-danger: var(--danger);
+  --color-danger-muted: var(--danger-muted);
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
+  --font-sans: var(--font-jakarta);
+  --font-mono: var(--font-mono);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
 }
 
 html,
@@ -29,9 +74,16 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Hide scrollbars on the snap feed without losing scroll behaviour. */
+::selection {
+  background: rgba(250, 250, 250, 0.2);
+  color: var(--foreground);
+}
+
+/* ── Utilities ───────────────────────────────────────────────────────────── */
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -40,21 +92,44 @@ body {
   display: none;
 }
 
-/* Vertical, full-height snap feed (TikTok / Reels style). */
 .feed-snap {
   scroll-snap-type: y mandatory;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: none;
   touch-action: pan-y;
-  /* Promote scroller for smoother momentum on mobile GPUs */
   transform: translateZ(0);
 }
 .feed-snap-slide {
   scroll-snap-align: start;
-  /* Stop at every reel during a fling — prevents skipping multiple clips */
   scroll-snap-stop: always;
   contain: layout style;
   transform: translateZ(0);
+}
+
+.card {
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.card-elevated {
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-elevated);
+}
+
+.label-caps {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.text-balance {
+  text-wrap: balance;
 }
 
 @keyframes like-burst {
@@ -81,4 +156,14 @@ body {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Subtle page texture on admin / library views */
+.page-texture {
+  background-color: var(--background);
+  background-image: radial-gradient(
+    ellipse 80% 50% at 50% -20%,
+    rgba(255, 255, 255, 0.04),
+    transparent
+  );
 }

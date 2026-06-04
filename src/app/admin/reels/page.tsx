@@ -2,6 +2,11 @@ import { ReelStatus } from "@prisma/client";
 import Link from "next/link";
 
 import { deleteReel, retryReel } from "@/app/admin/actions";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { FilterPill } from "@/components/ui/FilterPill";
+import { Input } from "@/components/ui/Input";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { postTypeFromUrl } from "@/lib/instagram";
 import { getAdminReels } from "@/lib/queries";
 
@@ -23,12 +28,12 @@ const STATUSES: (ReelStatus | "ALL")[] = [
   "SKIPPED",
 ];
 
-const STATUS_STYLES: Record<ReelStatus, string> = {
-  PENDING: "bg-yellow-500/15 text-yellow-400",
-  DOWNLOADED: "bg-green-500/15 text-green-400",
-  FAILED: "bg-red-500/15 text-red-400",
-  UNAVAILABLE: "bg-zinc-500/15 text-zinc-400",
-  SKIPPED: "bg-zinc-500/15 text-zinc-400",
+const STATUS_TONE: Record<ReelStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
+  PENDING: "warning",
+  DOWNLOADED: "success",
+  FAILED: "danger",
+  UNAVAILABLE: "neutral",
+  SKIPPED: "neutral",
 };
 
 export default async function AdminReelsPage({
@@ -59,149 +64,145 @@ export default async function AdminReelsPage({
   };
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-bold">Reels</h1>
+    <div className="space-y-8">
+      <PageHeader
+        title="Reels"
+        description={`${total} items in your library index.`}
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        {STATUSES.map((s) => {
-          const activeStatus = sp.status ?? "ALL";
-          return (
-            <Link
-              key={s}
-              href={buildQuery({ status: s === "ALL" ? undefined : s, page: 1 })}
-              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                activeStatus === s
-                  ? "border-accent bg-accent/20 text-accent"
-                  : "border-border text-muted hover:text-foreground"
-              }`}
-            >
-              {s}
-            </Link>
-          );
-        })}
+      <div className="flex flex-wrap gap-2">
+        {STATUSES.map((s) => (
+          <FilterPill
+            key={s}
+            href={buildQuery({ status: s === "ALL" ? undefined : s, page: 1 })}
+            active={(sp.status ?? "ALL") === s}
+          >
+            {s}
+          </FilterPill>
+        ))}
       </div>
 
-      <form action="/admin/reels" className="flex gap-2">
+      <form action="/admin/reels" className="flex flex-col gap-2 sm:flex-row">
         {sp.status && <input type="hidden" name="status" value={sp.status} />}
-        <input
+        <Input
           name="q"
           defaultValue={sp.q ?? ""}
           placeholder="Search caption, shortcode, creator…"
-          className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+          className="flex-1"
         />
-        <button
-          type="submit"
-          className="rounded-lg bg-surface-2 px-4 py-2 text-sm hover:bg-border"
-        >
+        <Button type="submit" variant="secondary" className="shrink-0 sm:w-auto">
           Search
-        </button>
+        </Button>
       </form>
 
-      <p className="text-sm text-muted">{total} reels</p>
-
-      <div className="overflow-hidden rounded-xl border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted">
-            <tr>
-              <th className="px-4 py-3">Reel</th>
-              <th className="px-4 py-3">Type</th>
-              <th className="px-4 py-3">Creator</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((reel) => (
-              <tr key={reel.id} className="border-t border-border align-top">
-                <td className="max-w-xs px-4 py-3">
-                  <a
-                    href={reel.reelUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-mono text-xs text-accent hover:underline"
-                  >
-                    {reel.shortcode}
-                  </a>
-                  {reel.caption && (
-                    <p className="mt-1 line-clamp-2 text-xs text-muted">{reel.caption}</p>
-                  )}
-                  {reel.failReason && reel.status === "FAILED" && (
-                    <p className="mt-1 line-clamp-2 text-xs text-red-400/80">
-                      {reel.failReason}
-                    </p>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      postTypeFromUrl(reel.reelUrl) === "post"
-                        ? "bg-orange-500/15 text-orange-400"
-                        : "bg-blue-500/15 text-blue-400"
-                    }`}
-                  >
-                    {TYPE_LABELS[postTypeFromUrl(reel.reelUrl)]}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-muted">
-                  {reel.creator ? `@${reel.creator.username}` : "—"}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[reel.status]}`}
-                  >
-                    {reel.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-3 text-xs">
-                    {reel.status !== "DOWNLOADED" && (
-                      <form action={retryReel.bind(null, reel.id)}>
-                        <button type="submit" className="text-accent hover:underline">
-                          Retry
-                        </button>
-                      </form>
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-surface-elevated text-left">
+                <th className="label-caps px-4 py-3">Reel</th>
+                <th className="label-caps px-4 py-3">Type</th>
+                <th className="label-caps px-4 py-3">Creator</th>
+                <th className="label-caps px-4 py-3">Status</th>
+                <th className="label-caps px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((reel) => (
+                <tr
+                  key={reel.id}
+                  className="border-b border-border align-top transition-colors last:border-0 hover:bg-surface-hover/50"
+                >
+                  <td className="max-w-xs px-4 py-3.5">
+                    <a
+                      href={reel.reelUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono text-xs text-foreground-secondary underline-offset-2 hover:text-foreground hover:underline"
+                    >
+                      {reel.shortcode}
+                    </a>
+                    {reel.caption && (
+                      <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted">
+                        {reel.caption}
+                      </p>
                     )}
-                    <form action={deleteReel.bind(null, reel.id)}>
-                      <button type="submit" className="text-muted hover:text-red-400">
-                        Delete
-                      </button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-muted">
-                  No reels match.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                    {reel.failReason && reel.status === "FAILED" && (
+                      <p className="mt-1.5 line-clamp-2 text-xs text-danger/90">
+                        {reel.failReason}
+                      </p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <Badge tone={postTypeFromUrl(reel.reelUrl) === "post" ? "warning" : "info"}>
+                      {TYPE_LABELS[postTypeFromUrl(reel.reelUrl)]}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3.5 text-muted">
+                    {reel.creator ? `@${reel.creator.username}` : "—"}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <Badge tone={STATUS_TONE[reel.status]}>{reel.status}</Badge>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex gap-2">
+                      {reel.status !== "DOWNLOADED" && (
+                        <form action={retryReel.bind(null, reel.id)}>
+                          <Button type="submit" variant="ghost" size="sm">
+                            Retry
+                          </Button>
+                        </form>
+                      )}
+                      <form action={deleteReel.bind(null, reel.id)}>
+                        <Button type="submit" variant="danger" size="sm">
+                          Delete
+                        </Button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-16 text-center text-muted">
+                    No reels match this filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {pageCount > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <Link
-            href={buildQuery({ page: Math.max(1, page - 1) })}
-            className={`rounded-lg border border-border px-3 py-1.5 ${
-              page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-surface-2"
-            }`}
-          >
-            ← Prev
-          </Link>
-          <span className="text-muted">
+        <div className="flex items-center justify-between gap-4">
+          {page <= 1 ? (
+            <span className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-xs font-medium text-muted opacity-40">
+              Previous
+            </span>
+          ) : (
+            <Link
+              href={buildQuery({ page: page - 1 })}
+              className="inline-flex h-8 items-center rounded-lg border border-border bg-surface-elevated px-3 text-xs font-medium text-foreground transition-colors hover:bg-surface-hover"
+            >
+              Previous
+            </Link>
+          )}
+          <span className="text-sm tabular-nums text-muted">
             Page {page} of {pageCount}
           </span>
-          <Link
-            href={buildQuery({ page: Math.min(pageCount, page + 1) })}
-            className={`rounded-lg border border-border px-3 py-1.5 ${
-              page >= pageCount ? "pointer-events-none opacity-40" : "hover:bg-surface-2"
-            }`}
-          >
-            Next →
-          </Link>
+          {page >= pageCount ? (
+            <span className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-xs font-medium text-muted opacity-40">
+              Next
+            </span>
+          ) : (
+            <Link
+              href={buildQuery({ page: page + 1 })}
+              className="inline-flex h-8 items-center rounded-lg border border-border bg-surface-elevated px-3 text-xs font-medium text-foreground transition-colors hover:bg-surface-hover"
+            >
+              Next
+            </Link>
+          )}
         </div>
       )}
     </div>

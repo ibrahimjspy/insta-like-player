@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Like Player">
+  <rect width="180" height="180" rx="40" fill="#111114" />
+  <rect x="22" y="34" width="101" height="112" rx="17" stroke="#f4f4f5" stroke-width="8" />
+  <rect
+    x="56"
+    y="56"
+    width="101"
+    height="112"
+    rx="17"
+    stroke="#f4f4f5"
+    stroke-width="8"
+    opacity="0.55"
+  />
+  <path d="M84 82v39l31-19.5L84 82z" fill="#f4f4f5" opacity="0.9" />
+</svg>
