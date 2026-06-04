@@ -98,6 +98,27 @@ export const FEED_TASTE_CONFIG = {
   exclude: {
     maxSessionIds: 48,
   },
+
+  /** One-time backfill from `WatchHistory` when engagement is empty. */
+  backfill: {
+    assumedWatchSecPerSession: 22,
+    maxDeepWatchFromSessions: 3,
+  },
+
+  /** Feed player UI (`ReelFeed` / `ReelSlide`). */
+  player: {
+    muteStorageKey: "ilp_muted",
+    doubleTapMs: 320,
+    scrollSettleMs: 120,
+    activeIntersectionRatio: 0.55,
+    autoScrollLoops: 2,
+    videoPreloadRootMargin: "200% 0px",
+    sentinelRootMargin: "400px",
+    loopDetectPastRatio: 0.5,
+    loopDetectRewindRatio: 0.15,
+    maxWatchDeltaPerTick: 2,
+    likeBurstDurationMs: 800,
+  },
 } as const;
 
 export type FeedTasteConfig = typeof FEED_TASTE_CONFIG;

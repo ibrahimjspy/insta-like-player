@@ -12,12 +12,13 @@ export function useFavorite(reelId: string, initial: boolean) {
   const toggle = useCallback(() => {
     setFav((current) => {
       const next = !current;
+      const previous = current;
       startTransition(async () => {
         try {
           const result = await toggleFavorite(reelId);
           setFav(result);
         } catch {
-          setFav(current);
+          setFav((prev) => (prev === next ? previous : prev));
         }
       });
       return next;
@@ -33,7 +34,7 @@ export function useFavorite(reelId: string, initial: boolean) {
           const result = await toggleFavorite(reelId);
           setFav(result);
         } catch {
-          setFav(false);
+          setFav((prev) => (prev === true ? false : prev));
         }
       });
       return true;

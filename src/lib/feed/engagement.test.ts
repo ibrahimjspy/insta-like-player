@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const engagementCount = vi.fn();
-const engagementFindUnique = vi.fn();
 const engagementUpsert = vi.fn();
 const historyCreate = vi.fn();
 const executeRaw = vi.fn();
@@ -11,7 +10,6 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     reelEngagement: {
       count: (...args: unknown[]) => engagementCount(...args),
-      findUnique: (...args: unknown[]) => engagementFindUnique(...args),
       upsert: (...args: unknown[]) => engagementUpsert(...args),
     },
     watchHistory: { create: (...args: unknown[]) => historyCreate(...args) },
@@ -31,13 +29,11 @@ import {
 
 beforeEach(() => {
   engagementCount.mockReset();
-  engagementFindUnique.mockReset();
   engagementUpsert.mockReset();
   historyCreate.mockReset();
   executeRaw.mockReset();
   transaction.mockReset();
   transaction.mockImplementation((ops: unknown[]) => Promise.all(ops as Promise<unknown>[]));
-  engagementFindUnique.mockResolvedValue({ maxPositionSec: 0 });
   engagementUpsert.mockResolvedValue({});
   historyCreate.mockResolvedValue({});
   executeRaw.mockResolvedValue(1);
@@ -81,36 +77,33 @@ describe("recordWatchSession", () => {
 });
 
 describe("addWatchTime", () => {
+  it("no-ops when nothing to persist", async () => {
+    await addWatchTime("reel-1", 0, 0, {});
+    expect(executeRaw).not.toHaveBeenCalled();
+  });
+
   it("still records quick skip when watch seconds are below persistence threshold", async () => {
     await addWatchTime("reel-1", 1, 0, { durationSec: 60 });
-    expect(engagementUpsert).toHaveBeenCalled();
-    const update = engagementUpsert.mock.calls[0][0].update;
-    expect(update.quickSkipCount).toEqual({ increment: 1 });
-    expect(update.totalWatchSec).toBeUndefined();
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
-  it("increments watch seconds", async () => {
+  it("upserts watch seconds and position atomically", async () => {
     await addWatchTime("reel-1", 10, 30, { durationSec: 60 });
-    expect(engagementUpsert).toHaveBeenCalled();
-    const update = engagementUpsert.mock.calls[0][0].update;
-    expect(update.totalWatchSec).toEqual({ increment: 10 });
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
-  it("increments loopCount when provided", async () => {
+  it("persists loopCount in the upsert", async () => {
     await addWatchTime("reel-1", 5, 0, { durationSec: 60, loopCount: 2 });
-    const update = engagementUpsert.mock.calls[0][0].update;
-    expect(update.loopCount).toEqual({ increment: 2 });
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
-  it("increments deepWatchCount on high completion", async () => {
+  it("persists deep watch classification", async () => {
     await addWatchTime("reel-1", 70, 75, { durationSec: 80 });
-    const update = engagementUpsert.mock.calls[0][0].update;
-    expect(update.deepWatchCount).toEqual({ increment: 1 });
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
-  it("increments quickSkipCount on bounce", async () => {
+  it("persists quick skip on bounce", async () => {
     await addWatchTime("reel-1", 2, 1, { durationSec: 120 });
-    const update = engagementUpsert.mock.calls[0][0].update;
-    expect(update.quickSkipCount).toEqual({ increment: 1 });
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 });

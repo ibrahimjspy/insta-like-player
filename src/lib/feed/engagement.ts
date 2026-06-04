@@ -15,6 +15,8 @@ export type { WatchFlushMetrics };
 export const MIN_WATCH_SEC_TO_RECORD = FEED_TASTE_CONFIG.session.minWatchSecToRecord;
 export const MAX_WATCH_SEC_PER_FLUSH = FEED_TASTE_CONFIG.session.maxWatchSecPerFlush;
 
+const { backfill: BACKFILL } = FEED_TASTE_CONFIG;
+
 export function clampWatchSec(sec: number): number {
   if (!Number.isFinite(sec) || sec < MIN_WATCH_SEC_TO_RECORD) return 0;
   return Math.min(Math.round(sec), MAX_WATCH_SEC_PER_FLUSH);
@@ -39,8 +41,8 @@ export async function backfillEngagementFromHistory(): Promise<void> {
     SELECT
       "reelId",
       COUNT(*)::int,
-      (COUNT(*) * 22)::int,
-      LEAST(COUNT(*)::int, 3),
+      (COUNT(*) * ${BACKFILL.assumedWatchSecPerSession})::int,
+      LEAST(COUNT(*)::int, ${BACKFILL.maxDeepWatchFromSessions}),
       MAX("watchedAt")
     FROM "WatchHistory"
     GROUP BY "reelId"
@@ -75,7 +77,9 @@ export async function recordWatchSession(reelId: string, positionSec = 0): Promi
   `;
 }
 
-/** Merges a playback segment into the rollup (time, loops, deep/skip quality). */
+/**
+ * Merges a playback segment into the rollup using a single upsert (atomic increments).
+ */
 export async function addWatchTime(
   reelId: string,
   watchSec: number,
@@ -95,30 +99,36 @@ export async function addWatchTime(
 
   if (sec === 0 && loops === 0 && !deepWatch && !quickSkip) return;
 
-  const existing = await prisma.reelEngagement.findUnique({
-    where: { reelId },
-    select: { maxPositionSec: true },
-  });
+  const deepInc = deepWatch ? 1 : 0;
+  const skipInc = quickSkip ? 1 : 0;
 
-  await prisma.reelEngagement.upsert({
-    where: { reelId },
-    create: {
-      reelId,
-      watchCount: 0,
-      totalWatchSec: sec,
-      maxPositionSec: pos,
-      loopCount: loops,
-      deepWatchCount: deepWatch ? 1 : 0,
-      quickSkipCount: quickSkip ? 1 : 0,
-      lastWatchedAt: new Date(),
-    },
-    update: {
-      ...(sec > 0 ? { totalWatchSec: { increment: sec } } : {}),
-      ...(loops > 0 ? { loopCount: { increment: loops } } : {}),
-      ...(deepWatch ? { deepWatchCount: { increment: 1 } } : {}),
-      ...(quickSkip ? { quickSkipCount: { increment: 1 } } : {}),
-      lastWatchedAt: new Date(),
-      maxPositionSec: Math.max(existing?.maxPositionSec ?? 0, pos),
-    },
-  });
+  await prisma.$executeRaw`
+    INSERT INTO "ReelEngagement" (
+      "reelId",
+      "watchCount",
+      "totalWatchSec",
+      "maxPositionSec",
+      "loopCount",
+      "deepWatchCount",
+      "quickSkipCount",
+      "lastWatchedAt"
+    )
+    VALUES (
+      ${reelId},
+      0,
+      ${sec},
+      ${pos},
+      ${loops},
+      ${deepInc},
+      ${skipInc},
+      NOW()
+    )
+    ON CONFLICT ("reelId") DO UPDATE SET
+      "totalWatchSec" = "ReelEngagement"."totalWatchSec" + ${sec},
+      "maxPositionSec" = GREATEST("ReelEngagement"."maxPositionSec", ${pos}),
+      "loopCount" = "ReelEngagement"."loopCount" + ${loops},
+      "deepWatchCount" = "ReelEngagement"."deepWatchCount" + ${deepInc},
+      "quickSkipCount" = "ReelEngagement"."quickSkipCount" + ${skipInc},
+      "lastWatchedAt" = NOW()
+  `;
 }

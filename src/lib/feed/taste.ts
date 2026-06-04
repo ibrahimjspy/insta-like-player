@@ -69,6 +69,7 @@ export function classifyWatchSession(metrics: WatchFlushMetrics): {
     (watchSec >= c.deepLongWatchSec && completion >= c.deepLongCompletionMin);
 
   const quickSkip =
+    watchSec > 0 &&
     !deepWatch &&
     (watchSec < c.quickSkipMaxSec ||
       (watchSec < c.quickSkipMidMaxSec && completion < c.quickSkipMidCompletionMax) ||

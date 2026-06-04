@@ -23,6 +23,14 @@ export {
 } from "@/lib/feed/sql";
 export { normalizeExcludeIds, smartFeedIdsQuery } from "@/lib/feed/smart-feed";
 export {
+  buildFeedFetchUrl,
+  nextFeedPaginationState,
+  shouldLoadMoreFeed,
+  trackRecentReelId,
+  withFeedKeys,
+  type FeedItem,
+} from "@/lib/feed/feed-pagination";
+export {
   classifyWatchSession,
   completionRatio,
   decayMultiplier,
