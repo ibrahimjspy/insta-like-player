@@ -2,7 +2,12 @@ import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
-import { buildSmartFeedIdsSql, sqlDurationBucketCase, sqlQueryText } from "@/lib/feed/sql";
+import {
+  buildSmartFeedIdsSql,
+  sqlDurationBucketCase,
+  sqlFloat,
+  sqlQueryText,
+} from "@/lib/feed/sql";
 
 describe("sqlDurationBucketCase", () => {
   it("embeds configured duration boundaries", () => {
@@ -13,6 +18,14 @@ describe("sqlDurationBucketCase", () => {
     expect(sql).toContain(String(defaultSec));
     expect(sql).toContain("'short'");
     expect(sql).toContain("'long'");
+  });
+});
+
+describe("sqlFloat", () => {
+  it("inlines numbers so Postgres never sees text operands", () => {
+    const f = sqlFloat(2.35);
+    expect(f.strings.join("")).toBe("2.35");
+    expect(f.values).toHaveLength(0);
   });
 });
 

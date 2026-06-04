@@ -7,6 +7,15 @@ import { Prisma } from "@prisma/client";
 
 import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
 
+/**
+ * Inline numeric literal for raw SQL.
+ * Prisma's pg adapter can bind `${number}` as text, which breaks `float * $param` in Postgres.
+ */
+export function sqlFloat(n: number): Prisma.Sql {
+  if (!Number.isFinite(n)) throw new Error(`Invalid SQL float: ${n}`);
+  return Prisma.raw(String(n));
+}
+
 /** Flattens a Prisma.sql fragment for assertions in tests (strings + bound values). */
 export function sqlQueryText(fragment: Prisma.Sql): string {
   let out = "";
@@ -57,26 +66,26 @@ export function buildSmartFeedIdsSql(
         r."creatorId",
         r."isFavorite",
         LEAST(
-          e."totalWatchSec"::float / GREATEST(COALESCE(r."durationSec", ${cfg.duration.defaultSec}), 1),
-          ${t.watchDepthCap}
+          e."totalWatchSec"::float / GREATEST(COALESCE(r."durationSec", ${sqlFloat(cfg.duration.defaultSec)}), 1),
+          ${sqlFloat(t.watchDepthCap)}
         ) AS watch_depth,
         LEAST(
-          e."maxPositionSec"::float / GREATEST(COALESCE(r."durationSec", ${cfg.duration.defaultSec}), 1),
+          e."maxPositionSec"::float / GREATEST(COALESCE(r."durationSec", ${sqlFloat(cfg.duration.defaultSec)}), 1),
           1
         ) AS peak_completion,
         (
           e."totalWatchSec"
-          + e."watchCount" * ${r.perWatchCount}
-          + e."deepWatchCount" * ${r.perDeepWatch}
-          + e."loopCount" * ${r.perLoop}
-          + e."quickSkipCount" * ${r.perQuickSkip}
+          + e."watchCount" * ${sqlFloat(r.perWatchCount)}
+          + e."deepWatchCount" * ${sqlFloat(r.perDeepWatch)}
+          + e."loopCount" * ${sqlFloat(r.perLoop)}
+          + e."quickSkipCount" * ${sqlFloat(r.perQuickSkip)}
         )::float
         * EXP(
           -EXTRACT(
             EPOCH FROM (
               NOW() - COALESCE(e."lastWatchedAt", NOW() - INTERVAL '400 days')
             )
-          ) / 86400 / ${cfg.decayHalfLifeDays} * LN(2)
+          ) / 86400 / ${sqlFloat(cfg.decayHalfLifeDays)} * LN(2)
         ) AS decayed_eng
       FROM "ReelEngagement" e
       INNER JOIN "Reel" r ON r.id = e."reelId"
@@ -118,13 +127,13 @@ export function buildSmartFeedIdsSql(
       SELECT cs.cid
       FROM creator_scores cs
       CROSS JOIN norms n
-      WHERE cs.s / n.max_creator >= ${t.lovedCreatorMinRatio}
+      WHERE cs.s / n.max_creator >= ${sqlFloat(t.lovedCreatorMinRatio)}
     ),
     strong_tags AS (
       SELECT ts."hashtagId"
       FROM tag_scores ts
       CROSS JOIN norms n
-      WHERE ts.s / n.max_tag >= ${t.strongTagMinRatio}
+      WHERE ts.s / n.max_tag >= ${sqlFloat(t.strongTagMinRatio)}
     ),
     reel_tag_affinity AS (
       SELECT
@@ -148,56 +157,56 @@ export function buildSmartFeedIdsSql(
       SELECT
         r.id,
         (
-          CASE WHEN eq."reelId" IS NULL THEN ${w.unseenBoost} ELSE 0 END
-          + COALESCE(eq.watch_depth, 0) * ${w.watchDepth}
-          + COALESCE(eq.peak_completion, 0) * ${w.peakCompletion}
-          + LEAST(COALESCE(eq."deepWatchCount", 0) * ${w.deepWatchCount}, ${w.deepWatchCountCap})
-          + LEAST(COALESCE(eq."loopCount", 0) * ${w.loopCount}, ${w.loopCountCap})
-          + COALESCE(cs.s / n.max_creator, 0) * ${w.creatorAffinity}
-          + COALESCE(rta.tag_sum, 0) * ${w.tagSum}
-          + LEAST(COALESCE(rta.strong_tag_hits, 0) * ${w.strongTagHit}, ${w.strongTagHitCap})
-          + COALESCE(rca.col_aff, 0) * ${w.collectionAffinity}
+          CASE WHEN eq."reelId" IS NULL THEN ${sqlFloat(w.unseenBoost)} ELSE 0 END
+          + COALESCE(eq.watch_depth, 0) * ${sqlFloat(w.watchDepth)}
+          + COALESCE(eq.peak_completion, 0) * ${sqlFloat(w.peakCompletion)}
+          + LEAST(COALESCE(eq."deepWatchCount", 0) * ${sqlFloat(w.deepWatchCount)}, ${sqlFloat(w.deepWatchCountCap)})
+          + LEAST(COALESCE(eq."loopCount", 0) * ${sqlFloat(w.loopCount)}, ${sqlFloat(w.loopCountCap)})
+          + COALESCE(cs.s / n.max_creator, 0) * ${sqlFloat(w.creatorAffinity)}
+          + COALESCE(rta.tag_sum, 0) * ${sqlFloat(w.tagSum)}
+          + LEAST(COALESCE(rta.strong_tag_hits, 0) * ${sqlFloat(w.strongTagHit)}, ${sqlFloat(w.strongTagHitCap)})
+          + COALESCE(rca.col_aff, 0) * ${sqlFloat(w.collectionAffinity)}
           + COALESCE(dt.s / NULLIF(n.max_duration, 0), 0)
           * CASE
-              WHEN COALESCE(r."durationSec", ${cfg.duration.defaultSec}) < ${cfg.duration.shortMaxSec} THEN ${w.durationTaste}
-              WHEN COALESCE(r."durationSec", ${cfg.duration.defaultSec}) < ${cfg.duration.mediumMaxSec} THEN ${w.durationTasteMedium}
-              ELSE ${w.durationTasteLong}
+              WHEN COALESCE(r."durationSec", ${sqlFloat(cfg.duration.defaultSec)}) < ${sqlFloat(cfg.duration.shortMaxSec)} THEN ${sqlFloat(w.durationTaste)}
+              WHEN COALESCE(r."durationSec", ${sqlFloat(cfg.duration.defaultSec)}) < ${sqlFloat(cfg.duration.mediumMaxSec)} THEN ${sqlFloat(w.durationTasteMedium)}
+              ELSE ${sqlFloat(w.durationTasteLong)}
             END
-          + CASE WHEN r."isFavorite" THEN ${w.favorite} ELSE 0 END
+          + CASE WHEN r."isFavorite" THEN ${sqlFloat(w.favorite)} ELSE 0 END
           + CASE
-              WHEN lc.cid IS NOT NULL AND eq."reelId" IS NULL THEN ${w.lovedCreatorUnseen}
+              WHEN lc.cid IS NOT NULL AND eq."reelId" IS NULL THEN ${sqlFloat(w.lovedCreatorUnseen)}
               ELSE 0
             END
           + CASE
               WHEN eq."reelId" IS NULL
-                AND COALESCE(rta.strong_tag_hits, 0) >= ${t.strongTagHitsForDiscovery} THEN ${w.tagDiscoveryUnseen}
+                AND COALESCE(rta.strong_tag_hits, 0) >= ${sqlFloat(t.strongTagHitsForDiscovery)} THEN ${sqlFloat(w.tagDiscoveryUnseen)}
               ELSE 0
             END
           + CASE
               WHEN eq."reelId" IS NULL
-                AND r."likedAt" > NOW() - (${t.likedAtRecencyDays} * INTERVAL '1 day') THEN ${w.likedAtRecencyUnseen}
+                AND r."likedAt" > NOW() - (${sqlFloat(t.likedAtRecencyDays)} * INTERVAL '1 day') THEN ${sqlFloat(w.likedAtRecencyUnseen)}
               ELSE 0
             END
           - CASE
-              WHEN COALESCE(eq."quickSkipCount", 0) >= ${t.quickSkipCountMin}
+              WHEN COALESCE(eq."quickSkipCount", 0) >= ${sqlFloat(t.quickSkipCountMin)}
                 OR (
-                  COALESCE(eq.peak_completion, 0) < ${t.peakCompletionSkipMax}
-                  AND COALESCE(eq."watchCount", 0) >= ${t.watchCountSkipMin}
-                ) THEN ${w.quickSkipPenalty}
+                  COALESCE(eq.peak_completion, 0) < ${sqlFloat(t.peakCompletionSkipMax)}
+                  AND COALESCE(eq."watchCount", 0) >= ${sqlFloat(t.watchCountSkipMin)}
+                ) THEN ${sqlFloat(w.quickSkipPenalty)}
               ELSE 0
             END
           - CASE
-              WHEN COALESCE(eq."watchCount", 0) >= ${t.overexposedWatchCount}
-                AND COALESCE(eq."totalWatchSec", 0) > ${t.overexposedTotalSec} THEN ${w.overexposedPenalty}
+              WHEN COALESCE(eq."watchCount", 0) >= ${sqlFloat(t.overexposedWatchCount)}
+                AND COALESCE(eq."totalWatchSec", 0) > ${sqlFloat(t.overexposedTotalSec)} THEN ${sqlFloat(w.overexposedPenalty)}
               ELSE 0
             END
           - CASE
-              WHEN eq."lastWatchedAt" > NOW() - (${t.recent3hHours} * INTERVAL '1 hour') THEN ${w.recent3hPenalty}
+              WHEN eq."lastWatchedAt" > NOW() - (${sqlFloat(t.recent3hHours)} * INTERVAL '1 hour') THEN ${sqlFloat(w.recent3hPenalty)}
               ELSE 0
             END
           - CASE
-              WHEN eq."lastWatchedAt" > NOW() - (${t.recent24hHours} * INTERVAL '1 hour')
-                AND COALESCE(eq."watchCount", 0) >= ${t.recent24hWatchCount} THEN ${w.recent24hRepeatPenalty}
+              WHEN eq."lastWatchedAt" > NOW() - (${sqlFloat(t.recent24hHours)} * INTERVAL '1 hour')
+                AND COALESCE(eq."watchCount", 0) >= ${sqlFloat(t.recent24hWatchCount)} THEN ${sqlFloat(w.recent24hRepeatPenalty)}
               ELSE 0
             END
         )::float AS score
@@ -214,8 +223,8 @@ export function buildSmartFeedIdsSql(
     )
     SELECT id
     FROM candidates
-    WHERE score > ${t.minCandidateScore}
+    WHERE score > ${sqlFloat(t.minCandidateScore)}
     ORDER BY (-LN(GREATEST(random(), 1e-12)) / score) ASC
-    LIMIT ${take}
+    LIMIT ${sqlFloat(take)}
   `;
 }

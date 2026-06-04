@@ -15,7 +15,12 @@ export {
   recordWatchSession,
   type WatchFlushMetrics,
 } from "@/lib/feed/engagement";
-export { buildSmartFeedIdsSql, sqlDurationBucketCase, sqlQueryText } from "@/lib/feed/sql";
+export {
+  buildSmartFeedIdsSql,
+  sqlDurationBucketCase,
+  sqlFloat,
+  sqlQueryText,
+} from "@/lib/feed/sql";
 export { normalizeExcludeIds, smartFeedIdsQuery } from "@/lib/feed/smart-feed";
 export {
   classifyWatchSession,
