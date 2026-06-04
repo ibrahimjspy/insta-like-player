@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { addWatchTime, recordWatchSession } from "@/lib/feed";
 import { prisma } from "@/lib/db";
 import { deleteMediaFiles } from "@/lib/media";
 
@@ -60,11 +61,19 @@ export async function skipReel(reelId: string): Promise<void> {
   revalidatePath("/favorites");
 }
 
-/// Records that a reel was watched (for history / resume).
+/// Starts a watch session (history + engagement counters).
 export async function recordWatch(reelId: string, positionSec = 0): Promise<void> {
-  await prisma.watchHistory.create({
-    data: { reelId, positionSec },
-  });
+  await recordWatchSession(reelId, positionSec);
+}
+
+/// Persists seconds watched on the active reel (called when leaving or pausing).
+export async function flushWatchTime(
+  reelId: string,
+  watchSec: number,
+  positionSec = 0,
+  metrics?: { durationSec?: number | null; loopCount?: number },
+): Promise<void> {
+  await addWatchTime(reelId, watchSec, positionSec, metrics ?? {});
 }
 
 export async function createCollection(formData: FormData): Promise<void> {

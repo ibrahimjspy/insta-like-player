@@ -1,6 +1,7 @@
 import { Prisma, ReelStatus } from "@prisma/client";
 
 import { config } from "@/lib/config";
+import { backfillEngagementFromHistory, smartFeedIdsQuery } from "@/lib/feed";
 import { prisma } from "@/lib/db";
 
 /// Fields needed to render a reel card / player. Shared across reader views.
@@ -29,24 +30,28 @@ export interface FeedPage {
 }
 
 /// Returns a page of playable (DOWNLOADED) reels for the infinite feed.
-/// Cursor pagination for recent/oldest; random returns a fresh shuffled batch each request (infinite).
+/// Cursor pagination for recent/oldest; random is a taste-aware ranked batch (infinite).
 export async function getFeed(params: {
   order?: FeedOrder;
   cursor?: string | null;
   take?: number;
+  /// Reel ids already shown this session (For you avoids immediate repeats).
+  excludeIds?: string[];
 }): Promise<FeedPage> {
   const take = params.take ?? config.feedPageSize;
   const order = params.order ?? "recent";
 
   if (order === "random") {
+    await backfillEngagementFromHistory();
     const rows = await prisma.$queryRaw<{ id: string }[]>(
-      Prisma.sql`SELECT id FROM "Reel" WHERE status = 'DOWNLOADED' ORDER BY random() LIMIT ${take}`,
+      smartFeedIdsQuery(take, params.excludeIds),
     );
     const items = await prisma.reel.findMany({
       where: { id: { in: rows.map((r) => r.id) } },
       select: reelCardSelect,
     });
-    // Signal infinite scroll — each request is a fresh random batch (repeats OK).
+    const orderMap = new Map(rows.map((r, i) => [r.id, i]));
+    items.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
     return { items, nextCursor: items.length > 0 ? "more" : null };
   }
 

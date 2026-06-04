@@ -27,7 +27,8 @@ liked_posts.json  ──►  ingest  ──►  PostgreSQL  ◄──  sync (yt-
 
 There are **two areas**:
 
-- **Reader (`/`)** — the feed, search, collections, favorites.
+- **Reader (`/`)** — the feed (Recent / Oldest / **For you** personalized),
+  search, collections, favorites.
 - **Admin (`/admin`)** — import the export, run/monitor syncs, manage reels.
 
 ## Tech stack
@@ -131,7 +132,8 @@ prisma/schema.prisma      Data model (reels, creators, collections, …)
 prisma.config.ts          Prisma 7 datasource config
 scripts/ingest.ts         CLI: liked_posts.json -> DB
 scripts/sync.ts           CLI: yt-dlp downloader
-src/lib/                  config, db, queries, ingest/sync core, helpers
+src/lib/                  config, db, queries, feed/, ingest/sync core, helpers
+docs/                     FEED_RECOMMENDATIONS.md (For you algorithm)
 src/app/(reader)/         Reader UI: feed, search, collections, favorites
 src/app/admin/            Admin UI: dashboard, reels table
 src/app/api/              Media streaming + feed + admin endpoints
@@ -169,9 +171,11 @@ npm run test:watch  # watch mode
 ```
 
 The suite covers the core logic — URL/hashtag parsing, export parsing and
-idempotent import, feed pagination and search filters, media path safety, and
-the yt-dlp argument/output helpers. Database access is mocked, so no Postgres or
-network is required to run the tests.
+idempotent import, feed pagination and search filters, **For you taste/scoring**
+(`src/lib/feed/`), media path safety, and the yt-dlp argument/output helpers.
+Database access is mocked, so no Postgres or network is required to run the tests.
+
+For you feed design and tuning: **[docs/FEED_RECOMMENDATIONS.md](./docs/FEED_RECOMMENDATIONS.md)**.
 
 ## Legal & privacy notes
 

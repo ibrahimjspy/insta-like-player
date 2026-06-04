@@ -59,6 +59,7 @@ src/lib/
   config.ts                  Single typed config object (zod + env). Import this
                              instead of reading process.env anywhere.
   db.ts                      PrismaClient singleton (Prisma 7 + pg adapter)
+  feed/                      **For you** personalized feed (see below)
   instagram.ts               URL/shortcode/hashtag parsing (pure)
   ingest.ts                  parseLikedPosts() + importLikes()
   sync.ts                    yt-dlp downloader + pure helpers
@@ -89,6 +90,24 @@ src/components/              React components (Sidebar, ReelFeed, ReelGrid, …)
    set `status = DOWNLOADED` (or `FAILED` / `UNAVAILABLE`).
 3. **Read** (`src/lib/queries.ts`): the reader only ever shows `DOWNLOADED` reels.
 
+### For you feed (`order=random`)
+
+UI label **For you**; URL stays `?order=random`. Not pure random — ranks reels from
+`ReelEngagement` (watch time, loops, deep/skip signals, creator/tag/collection taste).
+
+| What | Where |
+|------|--------|
+| Tune weights / thresholds | `src/lib/feed/config.ts` |
+| Session classification (pure) | `src/lib/feed/taste.ts` |
+| Scoring SQL (one query per page) | `src/lib/feed/sql.ts` |
+| DB rollup writes | `src/lib/feed/engagement.ts` |
+| Design doc | [docs/FEED_RECOMMENDATIONS.md](./docs/FEED_RECOMMENDATIONS.md) |
+
+Import from `@/lib/feed` (not scattered `@/lib/engagement` / `@/lib/smart-feed`).
+After changing feed logic: `npm test -- src/lib/feed` (and `queries.test.ts` if
+`getFeed` changed). Player sends watch metrics via `recordWatch` / `flushWatchTime`
+in `src/app/actions.ts`; infinite scroll passes `exclude` reel ids to avoid repeats.
+
 ## Conventions
 
 - **Config**: everything tunable goes through `src/lib/config.ts` (typed, with
@@ -98,7 +117,8 @@ src/components/              React components (Sidebar, ReelFeed, ReelGrid, …)
   `src/app/api/` (HTTP). Keep business logic out of route handlers/components.
 - **Pure functions are exported and unit-tested** (e.g. `parseLikedPosts`,
   `extractShortcode`, `classifyOutputs`, `buildYtDlpArgs`, `isUnavailable`,
-  `resolveMediaPath`). When adding logic, prefer a pure helper + a test.
+  `resolveMediaPath`, `classifyWatchSession` in `src/lib/feed/taste.ts`). When
+  adding logic, prefer a pure helper + a test.
 - **Mutations** use Next server actions (`*/actions.ts`) with `revalidatePath`.
   **Reads** use server components calling `src/lib/queries.ts`.
 - **Media is referenced by shortcode only** on the client (`/api/media/...`).
@@ -128,8 +148,9 @@ src/components/              React components (Sidebar, ReelFeed, ReelGrid, …)
 
 ## Scope guardrails
 
-In scope: importing likes, downloading media, feed, search, collections,
-favorites, watch history. Out of scope (V1): posting/modifying Instagram likes,
+In scope: importing likes, downloading media, feed (including personalized For you),
+search, collections, favorites, watch history / engagement. Out of scope (V1):
+posting/modifying Instagram likes,
 accessing content the user can't already see, social/sharing features.
 
 Only operate on the user's own exported data. Don't add Instagram scraping/login

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 const OPTIONS = [
   { value: "recent", label: "Recent" },
   { value: "oldest", label: "Oldest" },
-  { value: "random", label: "Random" },
+  { value: "random", label: "For you" },
 ] as const;
 
 export function OrderSelect({ value }: { value: string }) {

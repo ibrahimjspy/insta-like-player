@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { AutoScrollToggle } from "@/components/AutoScrollToggle";
 import { OrderSelect } from "@/components/OrderSelect";
 import { useReaderChrome } from "@/components/ReaderChromeContext";
 import { ReelFeed } from "@/components/ReelFeed";
@@ -17,6 +18,8 @@ interface Props {
 export function FeedPageClient({ order, initialItems, initialCursor }: Props) {
   const { setFeedPausedChrome } = useReaderChrome();
   const [showOrderBar, setShowOrderBar] = useState(initialItems.length === 0);
+  const [userPaused, setUserPaused] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(false);
 
   const onPausedChromeVisibility = useCallback(
     (visible: boolean) => {
@@ -40,14 +43,21 @@ export function FeedPageClient({ order, initialItems, initialCursor }: Props) {
         }`}
         aria-hidden={!showOrderBar}
       >
-        <OrderSelect value={order} />
+        <div className="flex items-center gap-2">
+          {userPaused && initialItems.length > 0 && (
+            <AutoScrollToggle enabled={autoScroll} onChange={setAutoScroll} />
+          )}
+          <OrderSelect value={order} />
+        </div>
       </div>
       <ReelFeed
         key={order}
         initialItems={initialItems}
         initialCursor={initialCursor}
         order={order}
+        autoScroll={autoScroll}
         onOrderBarVisibility={onPausedChromeVisibility}
+        onUserPaused={setUserPaused}
       />
     </div>
   );

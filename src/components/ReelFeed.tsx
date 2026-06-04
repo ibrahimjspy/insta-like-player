@@ -3,7 +3,7 @@
 import { Ban, ExternalLink, Heart, Trash2, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { deleteReel, recordWatch, skipReel } from "@/app/actions";
+import { deleteReel, flushWatchTime, recordWatch, skipReel } from "@/app/actions";
 import { FavoriteButtonUI, useFavorite } from "@/components/FavoriteButton";
 import { type ReelView, videoSrc } from "@/lib/types";
 
@@ -12,6 +12,8 @@ type FeedOrder = "recent" | "oldest" | "random";
 const MUTE_KEY = "ilp_muted";
 const DOUBLE_TAP_MS = 320;
 const SCROLL_SETTLE_MS = 120;
+/// Full loop completions before auto-advancing to the next reel.
+const AUTO_SCROLL_LOOPS = 2;
 /// Slide must fill this much of the feed viewport to count as "on screen".
 const ACTIVE_RATIO = 0.55;
 
@@ -40,6 +42,9 @@ interface Props {
   emptyHint?: React.ReactNode;
   /// Show the feed order bar (Recent / Oldest / Random) only when this is true.
   onOrderBarVisibility?: (visible: boolean) => void;
+  onUserPaused?: (paused: boolean) => void;
+  /// After this many loop completions on the active reel, scroll to the next slide.
+  autoScroll?: boolean;
 }
 
 export function ReelFeed({
@@ -50,6 +55,8 @@ export function ReelFeed({
   emptyTitle,
   emptyHint,
   onOrderBarVisibility,
+  onUserPaused: onUserPausedChange,
+  autoScroll = false,
 }: Props) {
   const [feedInit] = useState(() => initialFeedState(initialItems));
   const [items, setItems] = useState<FeedItem[]>(feedInit.items);
@@ -62,6 +69,8 @@ export function ReelFeed({
   const prevActiveReelId = useRef<string | null>(null);
   const touchStartIndex = useRef<number | null>(null);
   const isSnapping = useRef(false);
+  /// Reel ids shown this session — keeps For you from immediately repeating.
+  const recentReelIds = useRef<string[]>([]);
 
   const [muted, setMuted] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -188,6 +197,7 @@ export function ReelFeed({
         if (resolved && resolved !== prevActiveReelId.current) {
           prevActiveReelId.current = resolved;
           setUserPaused(false);
+          onUserPausedChange?.(false);
         }
         return resolved;
       });
@@ -212,7 +222,16 @@ export function ReelFeed({
       mo.disconnect();
       observer.disconnect();
     };
-  }, [items]);
+  }, [items, onUserPausedChange]);
+
+  useEffect(() => {
+    if (!activeReelId) return;
+    const reel = items.find((r) => r.feedKey === activeReelId);
+    if (!reel) return;
+    const prev = recentReelIds.current;
+    if (prev[prev.length - 1] === reel.id) return;
+    recentReelIds.current = [...prev.filter((id) => id !== reel.id), reel.id].slice(-48);
+  }, [activeReelId, items]);
 
   const hasMore =
     paginate && (order === "random" ? items.length > 0 : cursor !== null);
@@ -221,9 +240,13 @@ export function ReelFeed({
     if (loading || !hasMore) return;
     setLoading(true);
     try {
+      const exclude =
+        order === "random" && recentReelIds.current.length > 0
+          ? `&exclude=${encodeURIComponent(recentReelIds.current.join(","))}`
+          : "";
       const url =
         order === "random"
-          ? `/api/reels?order=random`
+          ? `/api/reels?order=random${exclude}`
           : `/api/reels?order=${order}&cursor=${encodeURIComponent(cursor ?? "")}`;
       const res = await fetch(url);
       const page = (await res.json()) as { items: ReelView[]; nextCursor: string | null };
@@ -254,9 +277,22 @@ export function ReelFeed({
     [removeItem],
   );
 
-  const onUserPaused = useCallback((paused: boolean) => {
-    setUserPaused(paused);
-  }, []);
+  const onUserPaused = useCallback(
+    (paused: boolean) => {
+      setUserPaused(paused);
+      onUserPausedChange?.(paused);
+    },
+    [onUserPausedChange],
+  );
+
+  const advanceToNextSlide = useCallback(() => {
+    if (!activeReelId) return;
+    const activeIndex = items.findIndex((r) => r.feedKey === activeReelId);
+    if (activeIndex < 0 || activeIndex >= items.length - 1) return;
+    scrollToSlide(activeIndex + 1);
+    setUserPaused(false);
+    onUserPausedChange?.(false);
+  }, [activeReelId, items, scrollToSlide, onUserPausedChange]);
 
   if (items.length === 0) {
     onOrderBarVisibility?.(true);
@@ -287,6 +323,8 @@ export function ReelFeed({
             onDelete={onDelete}
             onSkip={onSkip}
             onUserPaused={onUserPaused}
+            autoScroll={autoScroll}
+            onAutoScrollAdvance={advanceToNextSlide}
           />
         );
       })}
@@ -305,6 +343,8 @@ function ReelSlide({
   onDelete,
   onSkip,
   onUserPaused,
+  autoScroll,
+  onAutoScrollAdvance,
 }: {
   reel: FeedItem;
   isActive: boolean;
@@ -315,10 +355,17 @@ function ReelSlide({
   onDelete: (feedKey: string, reelId: string) => void;
   onSkip: (feedKey: string, reelId: string) => void;
   onUserPaused?: (paused: boolean) => void;
+  autoScroll?: boolean;
+  onAutoScrollAdvance?: () => void;
 }) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const watched = useRef(false);
+  const accumulatedWatchSec = useRef(0);
+  const sessionLoops = useRef(0);
+  const autoScrollLoops = useRef(0);
+  const lastVideoTime = useRef(0);
+  const lastLoopDetectTime = useRef(0);
   const lastTapAt = useRef(0);
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { fav, toggle: toggleFav, like, pending: favoritePending } = useFavorite(
@@ -438,16 +485,79 @@ function ReelSlide({
     }
   }, [isActive, muted, reel.id]);
 
+  const persistWatchTime = useCallback(() => {
+    const sec = accumulatedWatchSec.current;
+    const loops = sessionLoops.current;
+    accumulatedWatchSec.current = 0;
+    sessionLoops.current = 0;
+    if (sec < 2 && loops === 0) return;
+    const el = videoRef.current;
+    flushWatchTime(reel.id, sec, el?.currentTime ?? 0, {
+      durationSec: reel.durationSec,
+      loopCount: loops,
+    }).catch(() => undefined);
+  }, [reel.id, reel.durationSec]);
+
   useEffect(() => {
     const el = videoRef.current;
     if (!el || !attachVideo) return;
 
     if (!isActive) {
       el.pause();
+      lastVideoTime.current = 0;
+      lastLoopDetectTime.current = 0;
+      autoScrollLoops.current = 0;
+      persistWatchTime();
       return;
     }
+    autoScrollLoops.current = 0;
     if (frameReady) playActive();
-  }, [isActive, attachVideo, frameReady, playActive]);
+  }, [isActive, attachVideo, frameReady, playActive, persistWatchTime]);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !isActive) return;
+
+    const onTimeUpdate = () => {
+      if (!el.paused) {
+        const t = el.currentTime;
+        if (lastVideoTime.current > 0 && t >= lastVideoTime.current) {
+          accumulatedWatchSec.current += Math.min(t - lastVideoTime.current, 2);
+        }
+        lastVideoTime.current = t;
+      }
+
+      if (el.paused) return;
+      const duration = el.duration;
+      if (!Number.isFinite(duration) || duration <= 0) return;
+      if (
+        lastLoopDetectTime.current > duration * 0.5 &&
+        el.currentTime < duration * 0.15
+      ) {
+        sessionLoops.current += 1;
+        if (autoScroll) {
+          autoScrollLoops.current += 1;
+          if (autoScrollLoops.current >= AUTO_SCROLL_LOOPS) {
+            autoScrollLoops.current = 0;
+            onAutoScrollAdvance?.();
+          }
+        }
+      }
+      lastLoopDetectTime.current = el.currentTime;
+    };
+
+    el.addEventListener("timeupdate", onTimeUpdate);
+    return () => el.removeEventListener("timeupdate", onTimeUpdate);
+  }, [isActive, attachVideo, autoScroll, reel.feedKey, onAutoScrollAdvance]);
+
+  /// Checkpoint long sessions so engagement data survives tab closes.
+  useEffect(() => {
+    if (!isActive) return;
+    const id = setInterval(() => {
+      if (accumulatedWatchSec.current >= 12) persistWatchTime();
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [isActive, persistWatchTime]);
 
   const togglePlay = () => {
     const el = videoRef.current;

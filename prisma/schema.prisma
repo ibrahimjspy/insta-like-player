@@ -42,6 +42,7 @@ model Reel {
   hashtags    Hashtag[]        @relation("ReelHashtags")
   collections CollectionReel[]
   history     WatchHistory[]
+  engagement  ReelEngagement?
 
   @@index([likedAt])
   @@index([status])
@@ -85,6 +86,24 @@ model WatchHistory {
   positionSec Int      @default(0)
 
   @@index([watchedAt])
+  @@index([reelId])
+}
+
+/// Per-reel engagement rollup for fast personalized feed scoring.
+model ReelEngagement {
+  reelId         String    @id
+  reel           Reel      @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  watchCount     Int       @default(0)
+  totalWatchSec  Int       @default(0)
+  maxPositionSec Int       @default(0)
+  loopCount      Int       @default(0)
+  deepWatchCount Int       @default(0)
+  quickSkipCount Int       @default(0)
+  lastWatchedAt  DateTime?
+
+  @@index([lastWatchedAt])
+  @@index([totalWatchSec])
+  @@index([deepWatchCount])
 }
 
 enum ReelStatus {

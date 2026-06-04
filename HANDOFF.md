@@ -141,7 +141,9 @@ import"; excluded from the feed and never re-downloaded.
 ### Admin alternative
 `/admin` can upload the export (`/api/admin/import`) and run the sync with a live
 progress bar (`/api/admin/sync` + `src/lib/sync-runner.ts`, in-process state).
-The reader feed only ever shows `DOWNLOADED` reels.
+The reader feed only ever shows `DOWNLOADED` reels. **For you** (`?order=random`) is a
+personalized ranker — see [docs/FEED_RECOMMENDATIONS.md](./docs/FEED_RECOMMENDATIONS.md)
+and `src/lib/feed/config.ts` for tuning.
 
 ---
 

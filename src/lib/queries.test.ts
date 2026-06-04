@@ -2,19 +2,31 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const reelFindMany = vi.fn();
 const queryRaw = vi.fn();
+const engagementCount = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     reel: { findMany: (...args: unknown[]) => reelFindMany(...args) },
+    reelEngagement: { count: (...args: unknown[]) => engagementCount(...args) },
     $queryRaw: (...args: unknown[]) => queryRaw(...args),
+    $executeRaw: vi.fn(),
   },
 }));
+
+vi.mock("@/lib/feed", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/feed")>();
+  return {
+    ...actual,
+    backfillEngagementFromHistory: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import { getFeed, searchReels } from "@/lib/queries";
 
 beforeEach(() => {
   reelFindMany.mockReset();
   queryRaw.mockReset();
+  engagementCount.mockReset();
 });
 
 describe("getFeed (recent / oldest cursor pagination)", () => {
@@ -60,15 +72,19 @@ describe("getFeed (recent / oldest cursor pagination)", () => {
   });
 });
 
-describe("getFeed (random)", () => {
-  it("selects random ids and never paginates", async () => {
-    queryRaw.mockResolvedValue([{ id: "r1" }, { id: "r2" }]);
+describe("getFeed (random / for you)", () => {
+  it("uses taste-aware scoring sql and preserves rank order", async () => {
+    queryRaw.mockResolvedValue([{ id: "r2" }, { id: "r1" }]);
     reelFindMany.mockResolvedValue([{ id: "r1" }, { id: "r2" }]);
 
     const page = await getFeed({ order: "random", take: 2 });
 
     expect(queryRaw).toHaveBeenCalled();
-    expect(page.items).toHaveLength(2);
+    const sql = String(queryRaw.mock.calls[0][0]?.strings?.join("") ?? "");
+    expect(sql).toContain("ReelEngagement");
+    expect(sql).toContain("collection_scores");
+    expect(sql).toContain("LN(");
+    expect(page.items.map((i) => i.id)).toEqual(["r2", "r1"]);
     expect(page.nextCursor).toBe("more");
   });
 

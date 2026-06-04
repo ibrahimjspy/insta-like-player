@@ -11,7 +11,11 @@ export async function GET(request: NextRequest) {
   const orderParam = searchParams.get("order") as FeedOrder | null;
   const order = orderParam && ORDERS.includes(orderParam) ? orderParam : "recent";
   const cursor = searchParams.get("cursor");
+  const excludeRaw = searchParams.get("exclude");
+  const excludeIds = excludeRaw
+    ? excludeRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : undefined;
 
-  const page = await getFeed({ order, cursor });
+  const page = await getFeed({ order, cursor, excludeIds });
   return NextResponse.json(page);
 }
