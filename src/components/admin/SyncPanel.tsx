@@ -71,7 +71,7 @@ export function SyncPanel({ pendingCount }: { pendingCount: number }) {
             <code className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-xs text-foreground-secondary">
               yt-dlp
             </code>{" "}
-            locally. CLI:{" "}
+            locally with per-platform cookie files. CLI:{" "}
             <code className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-xs text-foreground-secondary">
               npm run sync
             </code>

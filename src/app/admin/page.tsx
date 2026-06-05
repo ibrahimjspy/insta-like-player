@@ -26,7 +26,7 @@ export default async function AdminDashboard() {
     <div className="space-y-10">
       <PageHeader
         title="Dashboard"
-        description="Import your Instagram likes export, then sync media into your private library on this machine."
+        description="Import likes from Instagram, TikTok, or Facebook, then sync media into your private library on this machine."
       />
 
       <section aria-labelledby="stats-heading">

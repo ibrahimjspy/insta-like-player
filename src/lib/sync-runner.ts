@@ -48,7 +48,7 @@ export function startSync(options: SyncOptions = {}): SyncState {
     ...options,
     onProgress: (e) => {
       state.progress = { index: e.index, total: e.total };
-      state.lastEvent = `${e.status} ${e.shortcode}`;
+      state.lastEvent = `${e.status} ${e.platform.toLowerCase()}:${e.shortcode}`;
     },
   })
     .then((summary) => {

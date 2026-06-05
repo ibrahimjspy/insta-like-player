@@ -11,6 +11,7 @@ import {
   skipReel,
 } from "@/app/actions";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { PlatformBadge } from "@/components/PlatformBadge";
 import { type ReelView, thumbSrc, videoSrc } from "@/lib/types";
 
 interface CollectionOption {
@@ -52,7 +53,7 @@ export function ReelGrid({ reels, collections, removeFromCollectionId }: Props) 
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={thumbSrc(reel.shortcode)}
+                src={thumbSrc(reel.platform, reel.shortcode)}
                 alt={reel.caption ?? "Reel thumbnail"}
                 loading="lazy"
                 className="h-full w-full object-cover transition-transform group-hover:scale-105"
@@ -61,6 +62,10 @@ export function ReelGrid({ reels, collections, removeFromCollectionId }: Props) 
                 <Play size={36} fill="currentColor" />
               </span>
             </button>
+
+            <div className="pointer-events-none absolute left-1.5 top-1.5">
+              <PlatformBadge platform={reel.platform} />
+            </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
               {reel.creator && (
@@ -130,8 +135,8 @@ function ReelModal({
         onClick={(e) => e.stopPropagation()}
       >
         <video
-          src={videoSrc(reel.shortcode)}
-          poster={thumbSrc(reel.shortcode)}
+          src={videoSrc(reel.platform, reel.shortcode)}
+          poster={thumbSrc(reel.platform, reel.shortcode)}
           className="max-h-[80vh] w-full rounded-xl bg-black object-contain"
           controls
           autoPlay
@@ -141,7 +146,10 @@ function ReelModal({
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
             {reel.creator && (
-              <p className="text-sm font-semibold text-white">@{reel.creator.username}</p>
+              <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                <PlatformBadge platform={reel.creator.platform} />
+                @{reel.creator.username}
+              </p>
             )}
             {reel.caption && (
               <p className="mt-1 line-clamp-3 text-sm text-white/70">{reel.caption}</p>

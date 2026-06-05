@@ -7,15 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { postTypeFromUrl } from "@/lib/instagram";
+import { PlatformBadge } from "@/components/PlatformBadge";
+import { postTypeLabel } from "@/lib/platforms";
 import { getAdminReels } from "@/lib/queries";
-
-const TYPE_LABELS: Record<string, string> = {
-  reel: "Reel",
-  igtv: "IGTV",
-  post: "Post",
-  unknown: "?",
-};
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +95,7 @@ export default async function AdminReelsPage({
             <thead>
               <tr className="border-b border-border bg-surface-elevated text-left">
                 <th className="label-caps px-4 py-3">Reel</th>
+                <th className="label-caps px-4 py-3">Platform</th>
                 <th className="label-caps px-4 py-3">Type</th>
                 <th className="label-caps px-4 py-3">Creator</th>
                 <th className="label-caps px-4 py-3">Status</th>
@@ -134,12 +129,28 @@ export default async function AdminReelsPage({
                     )}
                   </td>
                   <td className="px-4 py-3.5">
-                    <Badge tone={postTypeFromUrl(reel.reelUrl) === "post" ? "warning" : "info"}>
-                      {TYPE_LABELS[postTypeFromUrl(reel.reelUrl)]}
+                    <PlatformBadge platform={reel.platform} verbose />
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <Badge
+                      tone={
+                        reel.platform === "INSTAGRAM" && reel.reelUrl.includes("/p/")
+                          ? "warning"
+                          : "info"
+                      }
+                    >
+                      {postTypeLabel(reel.platform, reel.reelUrl)}
                     </Badge>
                   </td>
                   <td className="px-4 py-3.5 text-muted">
-                    {reel.creator ? `@${reel.creator.username}` : "—"}
+                    {reel.creator ? (
+                      <span className="inline-flex items-center gap-2">
+                        <PlatformBadge platform={reel.creator.platform} />
+                        @{reel.creator.username}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-4 py-3.5">
                     <Badge tone={STATUS_TONE[reel.status]}>{reel.status}</Badge>
@@ -164,7 +175,7 @@ export default async function AdminReelsPage({
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-16 text-center text-muted">
+                  <td colSpan={6} className="px-4 py-16 text-center text-muted">
                     No reels match this filter.
                   </td>
                 </tr>

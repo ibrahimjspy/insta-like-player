@@ -1,4 +1,4 @@
-import { Prisma, ReelStatus } from "@prisma/client";
+import { Platform, Prisma, ReelStatus } from "@prisma/client";
 
 import { config } from "@/lib/config";
 import { backfillEngagementFromHistory, smartFeedIdsQuery } from "@/lib/feed";
@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 /// Fields needed to render a reel card / player. Shared across reader views.
 export const reelCardSelect = {
   id: true,
+  platform: true,
   shortcode: true,
   reelUrl: true,
   caption: true,
@@ -17,7 +18,7 @@ export const reelCardSelect = {
   height: true,
   likedAt: true,
   isFavorite: true,
-  creator: { select: { username: true } },
+  creator: { select: { username: true, platform: true } },
 } satisfies Prisma.ReelSelect;
 
 export type ReelCard = Prisma.ReelGetPayload<{ select: typeof reelCardSelect }>;
@@ -79,13 +80,17 @@ export async function getFeed(params: {
 export async function searchReels(params: {
   query?: string;
   creator?: string;
+  platform?: Platform;
   take?: number;
 }): Promise<ReelCard[]> {
   const q = params.query?.trim();
   const where: Prisma.ReelWhereInput = { status: ReelStatus.DOWNLOADED };
 
   if (params.creator) {
-    where.creator = { username: params.creator };
+    where.creator = {
+      username: params.creator,
+      ...(params.platform ? { platform: params.platform } : {}),
+    };
   }
 
   if (q) {
@@ -117,12 +122,17 @@ export async function getCreatorsWithCounts() {
   const creators = await prisma.creator.findMany({
     where: { reels: { some: { status: ReelStatus.DOWNLOADED } } },
     select: {
+      platform: true,
       username: true,
       _count: { select: { reels: { where: { status: ReelStatus.DOWNLOADED } } } },
     },
-    orderBy: { username: "asc" },
+    orderBy: [{ platform: "asc" }, { username: "asc" }],
   });
-  return creators.map((c) => ({ username: c.username, count: c._count.reels }));
+  return creators.map((c) => ({
+    platform: c.platform,
+    username: c.username,
+    count: c._count.reels,
+  }));
 }
 
 export async function getCollections() {
@@ -198,6 +208,7 @@ export async function getAdminReels(params: {
       take: pageSize,
       select: {
         id: true,
+        platform: true,
         shortcode: true,
         reelUrl: true,
         caption: true,
@@ -206,7 +217,7 @@ export async function getAdminReels(params: {
         failReason: true,
         likedAt: true,
         downloadedAt: true,
-        creator: { select: { username: true } },
+        creator: { select: { username: true, platform: true } },
       },
     }),
     prisma.reel.count({ where }),

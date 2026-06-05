@@ -2,13 +2,15 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { config } from "@/lib/config";
-import { prisma } from "@/lib/db";
-import { parseHashtags, sureShotReelUrlWhere } from "@/lib/instagram";
+import type { Platform } from "@prisma/client";
 
-/// Recorded on generic `/p/` likes when reels-only sync skips them.
+import { config, cookiesForPlatform, impersonateForPlatform } from "@/lib/config";
+import { prisma } from "@/lib/db";
+import { mediaStorageKey, parseHashtags, sureShotVideoWhere } from "@/lib/platforms";
+
+/// Recorded when videos-only sync skips non-video likes.
 export const REELS_ONLY_SKIP_REASON =
-  "Reels-only sync: skipped generic /p/ post (may be a photo or carousel)";
+  "Videos-only sync: skipped non-video like (photo, link, or unsupported post type)";
 
 const VIDEO_EXTS = new Set([".mp4", ".mkv", ".webm", ".mov"]);
 const THUMB_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
@@ -18,13 +20,14 @@ export interface SyncOptions {
   limit?: number;
   /// Also re-attempt reels previously marked FAILED.
   includeFailed?: boolean;
-  /// When true (default), only download /reel/, /reels/, and /tv/ URLs.
+  /// When true (default), only download sure-shot video URLs per platform.
   reelsOnly?: boolean;
   /// Progress callback, called once per reel after it settles.
   onProgress?: (event: SyncProgress) => void;
 }
 
 export interface SyncProgress {
+  platform: Platform;
   shortcode: string;
   status: "DOWNLOADED" | "FAILED" | "UNAVAILABLE";
   index: number;
@@ -37,7 +40,7 @@ export interface SyncSummary {
   downloaded: number;
   failed: number;
   unavailable: number;
-  /// Generic `/p/` posts skipped before yt-dlp (reels-only mode).
+  /// Non-video likes skipped before yt-dlp (videos-only mode).
   skippedPosts: number;
 }
 
@@ -60,6 +63,7 @@ export function buildYtDlpArgs(
   outputTemplate: string,
   cookiesFile?: string,
   retries: number = config.sync.maxRetries,
+  impersonate?: string,
 ): string[] {
   const args = [
     url,
@@ -79,18 +83,21 @@ export function buildYtDlpArgs(
   if (cookiesFile) {
     args.push("--cookies", cookiesFile);
   }
+  if (impersonate) {
+    args.push("--impersonate", impersonate);
+  }
   return args;
 }
 
 /// Classifies a list of filenames into the video / thumbnail / info outputs
-/// produced by yt-dlp for a given shortcode. Pure and unit-testable.
-export function classifyOutputs(files: string[], shortcode: string) {
+/// produced by yt-dlp for a given storage key. Pure and unit-testable.
+export function classifyOutputs(files: string[], storageKey: string) {
   let video: string | undefined;
   let thumb: string | undefined;
   let info: string | undefined;
 
   for (const file of files) {
-    if (!file.startsWith(`${shortcode}.`)) continue;
+    if (!file.startsWith(`${storageKey}.`)) continue;
     const ext = path.extname(file).toLowerCase();
     if (file.endsWith(".info.json")) info = file;
     else if (VIDEO_EXTS.has(ext)) video = file;
@@ -102,9 +109,19 @@ export function classifyOutputs(files: string[], shortcode: string) {
 
 /// Runs yt-dlp once for a reel. Resolves on exit code 0, rejects otherwise
 /// with the captured stderr as the message.
-function runYtDlp(url: string, shortcode: string): Promise<void> {
-  const outputTemplate = path.join(config.mediaDir, `${shortcode}.%(ext)s`);
-  const args = buildYtDlpArgs(url, outputTemplate, config.ytDlp.cookiesFile);
+function runYtDlp(
+  url: string,
+  storageKey: string,
+  platform: Platform,
+): Promise<void> {
+  const outputTemplate = path.join(config.mediaDir, `${storageKey}.%(ext)s`);
+  const args = buildYtDlpArgs(
+    url,
+    outputTemplate,
+    cookiesForPlatform(platform),
+    config.sync.maxRetries,
+    impersonateForPlatform(platform),
+  );
   return new Promise((resolve, reject) => {
     const child = spawn(config.ytDlp.binary, args, {
       stdio: ["ignore", "ignore", "pipe"],
@@ -130,10 +147,10 @@ function runYtDlp(url: string, shortcode: string): Promise<void> {
   });
 }
 
-/// Finds the produced files for a shortcode in the media directory.
-async function collectOutputs(shortcode: string) {
+/// Finds the produced files for a storage key in the media directory.
+async function collectOutputs(storageKey: string) {
   const files = await fs.readdir(config.mediaDir);
-  return classifyOutputs(files, shortcode);
+  return classifyOutputs(files, storageKey);
 }
 
 async function readInfo(infoFile: string | undefined): Promise<YtDlpInfo> {
@@ -147,8 +164,7 @@ async function readInfo(infoFile: string | undefined): Promise<YtDlpInfo> {
 }
 
 /// Detects errors that mean "not worth retrying" so we mark UNAVAILABLE instead
-/// of FAILED. Covers deleted/private posts AND liked photo/carousel-image posts
-/// (a `/p/` like with no video), which should never sit in PENDING or retry.
+/// of FAILED.
 export function isUnavailable(message: string): boolean {
   const m = message.toLowerCase();
   return (
@@ -167,16 +183,16 @@ export function isUnavailable(message: string): boolean {
 /// Downloads a single reel and persists its media + metadata.
 async function downloadReel(reel: {
   id: string;
+  platform: Platform;
   shortcode: string;
   reelUrl: string;
   creatorId: string | null;
 }): Promise<"DOWNLOADED"> {
-  await runYtDlp(reel.reelUrl, reel.shortcode);
+  const storageKey = mediaStorageKey(reel.platform, reel.shortcode);
+  await runYtDlp(reel.reelUrl, storageKey, reel.platform);
 
-  const { video, thumb, info } = await collectOutputs(reel.shortcode);
+  const { video, thumb, info } = await collectOutputs(storageKey);
   if (!video) {
-    // No video file means this liked post is a photo or image-only carousel.
-    // The "no video" phrasing routes it to UNAVAILABLE (see isUnavailable).
     throw new Error("No video in this post (photo or image-only carousel)");
   }
 
@@ -184,12 +200,13 @@ async function downloadReel(reel: {
   const caption = meta.description ?? null;
   const username = meta.uploader ?? meta.channel ?? meta.uploader_id ?? null;
 
-  // Backfill creator from metadata if the export didn't include it.
   let creatorId = reel.creatorId;
   if (!creatorId && username) {
     const creator = await prisma.creator.upsert({
-      where: { username },
-      create: { username },
+      where: {
+        platform_username: { platform: reel.platform, username },
+      },
+      create: { platform: reel.platform, username },
       update: {},
     });
     creatorId = creator.id;
@@ -237,7 +254,7 @@ export async function syncPending(options: SyncOptions = {}): Promise<SyncSummar
     const { count } = await prisma.reel.updateMany({
       where: {
         status: { in: [...statuses] },
-        NOT: sureShotReelUrlWhere,
+        NOT: sureShotVideoWhere(),
       },
       data: { status: "UNAVAILABLE", failReason: REELS_ONLY_SKIP_REASON },
     });
@@ -247,11 +264,17 @@ export async function syncPending(options: SyncOptions = {}): Promise<SyncSummar
   const reels = await prisma.reel.findMany({
     where: {
       status: { in: [...statuses] },
-      ...(reelsOnly ? sureShotReelUrlWhere : {}),
+      ...(reelsOnly ? sureShotVideoWhere() : {}),
     },
     orderBy: { likedAt: "desc" },
     take: options.limit,
-    select: { id: true, shortcode: true, reelUrl: true, creatorId: true },
+    select: {
+      id: true,
+      platform: true,
+      shortcode: true,
+      reelUrl: true,
+      creatorId: true,
+    },
   });
 
   const summary: SyncSummary = {
@@ -268,6 +291,7 @@ export async function syncPending(options: SyncOptions = {}): Promise<SyncSummar
       await downloadReel(reel);
       summary.downloaded += 1;
       options.onProgress?.({
+        platform: reel.platform,
         shortcode: reel.shortcode,
         status: "DOWNLOADED",
         index: i + 1,
@@ -285,6 +309,7 @@ export async function syncPending(options: SyncOptions = {}): Promise<SyncSummar
       });
 
       options.onProgress?.({
+        platform: reel.platform,
         shortcode: reel.shortcode,
         status,
         index: i + 1,

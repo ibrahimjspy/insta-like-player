@@ -12,8 +12,8 @@ describe("withFeedKeys", () => {
   it("appends offset to disambiguate duplicate reel ids", () => {
     const items = withFeedKeys(
       [
-        { id: "a", shortcode: "x" } as never,
-        { id: "a", shortcode: "x" } as never,
+        { id: "a", platform: "INSTAGRAM", shortcode: "x" } as never,
+        { id: "a", platform: "INSTAGRAM", shortcode: "x" } as never,
       ],
       10,
     );

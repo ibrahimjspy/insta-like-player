@@ -1,10 +1,13 @@
 "use client";
 
+import type { Platform } from "@prisma/client";
 import { Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
+import { PlatformBadge } from "@/components/PlatformBadge";
 import { Button } from "@/components/ui/Button";
+import { exportHint } from "@/lib/platforms";
 
 interface ImportResult {
   parsed: number;
@@ -13,9 +16,12 @@ interface ImportResult {
   skippedUnparseable: number;
 }
 
+const PLATFORMS: Platform[] = ["INSTAGRAM", "TIKTOK", "FACEBOOK"];
+
 export function ImportPanel() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [platform, setPlatform] = useState<Platform>("INSTAGRAM");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +37,7 @@ export function ImportPanel() {
     try {
       const body = new FormData();
       body.append("file", file);
+      body.append("platform", platform);
       const res = await fetch("/api/admin/import", { method: "POST", body });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Import failed");
@@ -53,16 +60,36 @@ export function ImportPanel() {
           <p className="text-xs font-semibold text-muted">Step 1</p>
           <h2 className="mt-0.5 text-lg font-semibold tracking-tight">Import likes</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            Upload{" "}
-            <code className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-xs text-foreground-secondary">
-              liked_posts.json
-            </code>{" "}
-            from your Instagram data export.
+            Upload a JSON file from your platform&apos;s official data export.
           </p>
         </div>
       </div>
 
-      <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mt-5 flex flex-wrap gap-2">
+        {PLATFORMS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setPlatform(p)}
+            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+              platform === p
+                ? "border-foreground/30 bg-surface-elevated text-foreground"
+                : "border-border bg-background text-muted hover:bg-surface-hover hover:text-foreground"
+            }`}
+          >
+            <PlatformBadge platform={p} verbose />
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-3 text-sm text-muted">
+        Expected file:{" "}
+        <code className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-xs text-foreground-secondary">
+          {exportHint(platform)}
+        </code>
+      </p>
+
+      <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           ref={inputRef}
           type="file"

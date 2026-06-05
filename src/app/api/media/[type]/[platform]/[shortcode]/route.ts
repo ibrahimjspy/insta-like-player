@@ -4,20 +4,24 @@ import { Readable } from "node:stream";
 
 import { prisma } from "@/lib/db";
 import { contentTypeFor, parseByteRange, resolveMediaPath } from "@/lib/media";
+import { platformFromSlug } from "@/lib/platforms";
 
 export const runtime = "nodejs";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ type: string; shortcode: string }> },
+  { params }: { params: Promise<{ type: string; platform: string; shortcode: string }> },
 ) {
-  const { type, shortcode } = await params;
+  const { type, platform: platformSlug, shortcode } = await params;
   if (type !== "video" && type !== "thumb") {
     return new Response("Not found", { status: 404 });
   }
 
+  const platform = platformFromSlug(platformSlug);
+  if (!platform) return new Response("Not found", { status: 404 });
+
   const reel = await prisma.reel.findUnique({
-    where: { shortcode },
+    where: { platform_shortcode: { platform, shortcode } },
     select: { videoPath: true, thumbnailPath: true },
   });
 
@@ -33,7 +37,6 @@ export async function GET(
   const mime = contentTypeFor(filename);
   const range = request.headers.get("range");
 
-  // Range requests power video seeking and efficient streaming.
   if (range && type === "video") {
     const parsed = parseByteRange(range, stat.size);
 

@@ -36,6 +36,7 @@ describe("parseLikedPosts", () => {
     const likes = parseLikedPosts(raw);
     expect(likes).toHaveLength(1);
     expect(likes[0]).toMatchObject({
+      platform: "INSTAGRAM",
       shortcode: "ABC123",
       reelUrl: "https://www.instagram.com/reel/ABC123/",
       creatorUsername: "natgeo",
@@ -118,6 +119,7 @@ describe("parseLikedPosts (current label_values format)", () => {
   it("extracts url, caption, creator and liked time", () => {
     const [like] = parseLikedPosts([entry]);
     expect(like).toEqual({
+      platform: "INSTAGRAM",
       shortcode: "DY0odpgTBqk",
       reelUrl: "https://www.instagram.com/reel/DY0odpgTBqk/",
       creatorUsername: "spideey_k",
@@ -161,6 +163,7 @@ describe("importLikes", () => {
   });
 
   const sampleLike = {
+    platform: "INSTAGRAM" as const,
     shortcode: "ABC123",
     reelUrl: "https://www.instagram.com/reel/ABC123/",
     creatorUsername: "nasa",
@@ -178,13 +181,14 @@ describe("importLikes", () => {
     expect(result.imported).toBe(1);
     expect(result.updated).toBe(0);
     expect(creatorUpsert).toHaveBeenCalledWith({
-      where: { username: "nasa" },
-      create: { username: "nasa" },
+      where: { platform_username: { platform: "INSTAGRAM", username: "nasa" } },
+      create: { platform: "INSTAGRAM", username: "nasa" },
       update: {},
     });
     expect(reelCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
+          platform: "INSTAGRAM",
           shortcode: "ABC123",
           creatorId: "creator-1",
           status: "PENDING",

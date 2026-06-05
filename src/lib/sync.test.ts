@@ -27,6 +27,16 @@ describe("buildYtDlpArgs", () => {
     expect(withCookies).toContain("--cookies");
     expect(withCookies[withCookies.indexOf("--cookies") + 1]).toBe("/data/cookies.txt");
   });
+
+  it("omits impersonate when none provided", () => {
+    expect(args).not.toContain("--impersonate");
+  });
+
+  it("appends impersonate target when provided", () => {
+    const impersonated = buildYtDlpArgs("url", "tmpl", undefined, 3, "chrome");
+    expect(impersonated).toContain("--impersonate");
+    expect(impersonated[impersonated.indexOf("--impersonate") + 1]).toBe("chrome");
+  });
 });
 
 describe("classifyOutputs", () => {
@@ -39,9 +49,18 @@ describe("classifyOutputs", () => {
     });
   });
 
-  it("ignores files belonging to other shortcodes", () => {
+  it("ignores files belonging to other storage keys", () => {
     const files = ["OTHER.mp4", "ABC1234.mp4", "ABC123.mp4"];
     expect(classifyOutputs(files, "ABC123").video).toBe("ABC123.mp4");
+  });
+
+  it("classifies platform-prefixed storage keys", () => {
+    const files = ["tiktok_999.mp4", "tiktok_999.jpg", "tiktok_999.info.json"];
+    expect(classifyOutputs(files, "tiktok_999")).toEqual({
+      video: "tiktok_999.mp4",
+      thumb: "tiktok_999.jpg",
+      info: "tiktok_999.info.json",
+    });
   });
 
   it("returns undefined for missing outputs", () => {

@@ -32,7 +32,7 @@ async function main() {
     onProgress: (e) => {
       const tag = e.status === "DOWNLOADED" ? "ok " : e.status === "UNAVAILABLE" ? "gone" : "FAIL";
       const extra = e.message ? ` — ${e.message.split("\n")[0]}` : "";
-      console.log(`[${e.index}/${e.total}] ${tag} ${e.shortcode}${extra}`);
+      console.log(`[${e.index}/${e.total}] ${tag} ${e.platform.toLowerCase()}:${e.shortcode}${extra}`);
     },
   });
 
@@ -41,7 +41,7 @@ async function main() {
   console.log(`  failed:        ${summary.failed}`);
   console.log(`  unavailable:   ${summary.unavailable}`);
   if (summary.skippedPosts > 0) {
-    console.log(`  skipped /p/:   ${summary.skippedPosts} (reels-only; use --include-posts to try them)`);
+    console.log(`  skipped:       ${summary.skippedPosts} (videos-only; use --include-posts to try them)`);
   }
   if (summary.total === 0) {
     console.log("Nothing to do — no pending reels. Import an export first with `npm run ingest`.");

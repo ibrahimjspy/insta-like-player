@@ -16,7 +16,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Like Player",
-  description: "A personal, searchable, scrollable library of your liked Instagram reels.",
+  description:
+    "A personal, searchable, scrollable library of your liked videos from Instagram, TikTok, and Facebook.",
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
     apple: [{ url: "/apple-icon.svg", type: "image/svg+xml" }],

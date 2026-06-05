@@ -9,19 +9,29 @@ datasource db {
   provider = "postgresql"
 }
 
-/// A reel author. One creator has many liked reels.
+enum Platform {
+  INSTAGRAM
+  TIKTOK
+  FACEBOOK
+}
+
+/// A reel author. One creator has many liked reels (scoped per platform).
 model Creator {
   id        String   @id @default(uuid())
-  username  String   @unique
+  platform  Platform @default(INSTAGRAM)
+  username  String
   reels     Reel[]
   createdAt DateTime @default(now())
+
+  @@unique([platform, username])
 }
 
 /// A single liked reel. Starts as PENDING after import, becomes DOWNLOADED
 /// once the sync worker has fetched the media via yt-dlp.
 model Reel {
   id            String     @id @default(uuid())
-  shortcode     String     @unique
+  platform      Platform   @default(INSTAGRAM)
+  shortcode     String
   reelUrl       String     @unique
   caption       String?
   creatorId     String?
@@ -44,9 +54,11 @@ model Reel {
   history     WatchHistory[]
   engagement  ReelEngagement?
 
+  @@unique([platform, shortcode])
   @@index([likedAt])
   @@index([status])
   @@index([isFavorite])
+  @@index([platform])
 }
 
 /// A hashtag parsed from a reel caption. Many-to-many with reels.

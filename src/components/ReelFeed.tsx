@@ -16,6 +16,8 @@ import {
   withFeedKeys,
   type FeedItem,
 } from "@/lib/feed/feed-pagination";
+import { PlatformBadge } from "@/components/PlatformBadge";
+import { openOnPlatformLabel } from "@/lib/platforms";
 import { type ReelView, videoSrc } from "@/lib/types";
 
 type FeedOrder = "recent" | "oldest" | "random";
@@ -452,7 +454,7 @@ function ReelSlide({
         <video
           key={reel.feedKey}
           ref={videoRef}
-          src={attachVideo ? videoSrc(reel.shortcode) : undefined}
+          src={attachVideo ? videoSrc(reel.platform, reel.shortcode) : undefined}
           className={`max-h-full max-w-full object-contain object-center ${
             showVideo ? "opacity-100" : "opacity-0"
           }`}
@@ -491,7 +493,7 @@ function ReelSlide({
           href={reel.reelUrl}
           target="_blank"
           rel="noreferrer"
-          aria-label="Open on Instagram"
+          aria-label={openOnPlatformLabel(reel.platform)}
           className="grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white"
         >
           <ExternalLink size={24} />
@@ -516,7 +518,10 @@ function ReelSlide({
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-4 pb-4">
         {reel.creator && (
-          <p className="text-sm font-semibold text-white">@{reel.creator.username}</p>
+          <p className="flex items-center gap-2 text-sm font-semibold text-white">
+            <PlatformBadge platform={reel.creator.platform} />
+            @{reel.creator.username}
+          </p>
         )}
         {reel.caption && (
           <p className="mt-1 line-clamp-3 max-w-2xl text-sm text-white/80">{reel.caption}</p>

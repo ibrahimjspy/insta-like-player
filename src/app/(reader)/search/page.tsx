@@ -1,5 +1,7 @@
+import type { Platform } from "@prisma/client";
 import Link from "next/link";
 
+import { PlatformBadge } from "@/components/PlatformBadge";
 import { ReelGrid } from "@/components/ReelGrid";
 import { SearchBar } from "@/components/SearchBar";
 import { FilterPill } from "@/components/ui/FilterPill";
@@ -8,15 +10,21 @@ import { getCollections, getCreatorsWithCounts, searchReels } from "@/lib/querie
 
 export const dynamic = "force-dynamic";
 
+const PLATFORMS = new Set<Platform>(["INSTAGRAM", "TIKTOK", "FACEBOOK"]);
+
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; creator?: string }>;
+  searchParams: Promise<{ q?: string; creator?: string; platform?: string }>;
 }) {
-  const { q, creator } = await searchParams;
+  const { q, creator, platform: platformParam } = await searchParams;
+  const platform =
+    platformParam && PLATFORMS.has(platformParam as Platform)
+      ? (platformParam as Platform)
+      : undefined;
 
   const [results, creators, collections] = await Promise.all([
-    q || creator ? searchReels({ query: q, creator }) : Promise.resolve([]),
+    q || creator ? searchReels({ query: q, creator, platform }) : Promise.resolve([]),
     getCreatorsWithCounts(),
     getCollections(),
   ]);
@@ -25,7 +33,7 @@ export default async function SearchPage({
     <ReaderPage>
       <PageHeader
         title="Search"
-        description="Find reels by caption, creator, or hashtag across your library."
+        description="Find videos by caption, creator, or hashtag across Instagram, TikTok, and Facebook."
       />
 
       <div className="mt-8">
@@ -36,16 +44,19 @@ export default async function SearchPage({
         <section className="mt-8">
           <h2 className="label-caps mb-3">Creators</h2>
           <div className="flex flex-wrap gap-2">
-            {creators.slice(0, 40).map((c) => (
-              <FilterPill
-                key={c.username}
-                href={`/search?creator=${encodeURIComponent(c.username)}`}
-                active={creator === c.username}
-              >
-                @{c.username}
-                <span className="ml-1 opacity-50">{c.count}</span>
-              </FilterPill>
-            ))}
+            {creators.slice(0, 40).map((c) => {
+              const active = creator === c.username && platform === c.platform;
+              const href = `/search?creator=${encodeURIComponent(c.username)}&platform=${c.platform}`;
+              return (
+                <FilterPill key={`${c.platform}:${c.username}`} href={href} active={active}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <PlatformBadge platform={c.platform} />
+                    @{c.username}
+                    <span className="opacity-50">{c.count}</span>
+                  </span>
+                </FilterPill>
+              );
+            })}
           </div>
           {creator && (
             <Link
@@ -64,13 +75,14 @@ export default async function SearchPage({
             <p className="mb-4 text-sm text-muted">
               {results.length} result{results.length === 1 ? "" : "s"}
               {creator ? ` from @${creator}` : ""}
+              {platform ? ` on ${platform.toLowerCase()}` : ""}
               {q ? ` matching “${q}”` : ""}
             </p>
             <ReelGrid reels={results} collections={collections} />
           </>
         ) : (
           <p className="text-sm leading-relaxed text-muted">
-            Enter a query or pick a creator to browse your downloaded reels.
+            Enter a query or pick a creator to browse your downloaded videos.
           </p>
         )}
       </section>
