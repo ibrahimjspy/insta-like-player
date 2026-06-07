@@ -45,6 +45,8 @@ describe("buildSmartFeedIdsSql", () => {
     for (const cte of [
       "eng AS",
       "creator_scores",
+      "platform_scores",
+      "tag_document_counts",
       "tag_scores",
       "collection_scores",
       "duration_taste",
@@ -62,8 +64,35 @@ describe("buildSmartFeedIdsSql", () => {
     const sql = text(5);
     expect(sql).toContain(String(w.unseenBoost));
     expect(sql).toContain(String(w.creatorAffinity));
+    expect(sql).toContain(String(w.platformAffinity));
     expect(sql).toContain(String(w.recent3hPenalty));
     expect(sql).toContain(String(FEED_TASTE_CONFIG.engagementRaw.perDeepWatch));
+  });
+
+  it("clamps raw decayed engagement to non-negative taste", () => {
+    const sql = text(5);
+    expect(sql).toContain("GREATEST(");
+    expect(sql).toContain(`+ e."quickSkipCount" * ${FEED_TASTE_CONFIG.engagementRaw.perQuickSkip}`);
+    expect(sql).toContain(") AS decayed_eng");
+  });
+
+  it("uses Prisma implicit hashtag join direction correctly", () => {
+    const sql = text(5);
+    expect(sql).toContain('SELECT rh."A" AS "hashtagId"');
+    expect(sql).toContain('INNER JOIN "_ReelHashtags" rh ON rh."B" = eq."reelId"');
+    expect(sql).toContain('rh."B" AS "reelId"');
+    expect(sql).toContain('INNER JOIN tag_scores ts ON ts."hashtagId" = rh."A"');
+  });
+
+  it("downweights broad tags with document-frequency weighting", () => {
+    const sql = text(5);
+    expect(sql).toContain("downloaded_count / GREATEST(tdc.reel_count, 1)");
+    expect(sql).toContain(String(FEED_TASTE_CONFIG.tagAffinity.idfSmoothing));
+    expect(sql).toContain(String(FEED_TASTE_CONFIG.tagAffinity.minIdf));
+  });
+
+  it("floors normalization denominators to avoid divide-by-zero scores", () => {
+    expect(text(5)).toContain("GREATEST(COALESCE(MAX(s), 0), 1)");
   });
 
   it("uses Gumbel sampling for variety", () => {

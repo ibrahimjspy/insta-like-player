@@ -54,26 +54,33 @@ sequenceDiagram
 
   loop While playing
     Player->>Player: timeupdate accumulates seconds / loops
+    Player->>Actions: checkpoint flushWatchTime(..., classify=false)
+    Actions->>DB: ReelEngagement += time, loops
   end
 
-  Player->>Actions: flushWatchTime(sec, position, loops, duration)
-  Actions->>DB: ReelEngagement += time, loops, deep/skip flags
+  Player->>Actions: final flushWatchTime(..., classify=true, full-session totals)
+  Actions->>DB: ReelEngagement += remaining time, deep/skip flags
 
   Player->>Player: GET /api/reels?order=random&exclude=...
   Note over Player,DB: exclude = last ~48 reel ids this session
 ```
 
-**Checkpoint:** every 30s, if ≥12s accumulated, flush early so tab closes don’t lose data.
+**Checkpoint:** every 30s, if ≥12s accumulated, flush early so tab closes don’t
+lose watch seconds. Deep-watch / quick-skip classification happens only on the
+final session flush, using full-session totals, so a long watch split across
+checkpoints still counts as one strong signal.
 
 ## Scoring algorithm (SQL)
 
 One query per page:
 
 1. **`eng`** — Per-reel decayed engagement (`decayed_eng`) from rollup + reel duration.
-2. **`creator_scores` / `tag_scores` / `collection_scores` / `duration_taste`** — Aggregate taste vectors.
+2. **`creator_scores` / `platform_scores` / `tag_scores` / `collection_scores` / `duration_taste`** — Aggregate taste vectors.
+   `tag_scores` uses document-frequency dampening so broad tags like `fyp` or
+   `viral` do not overwhelm more specific interests.
 3. **`loved_creators` / `strong_tags`** — Top creators/tags by normalized score.
 4. **`candidates`** — Each downloaded reel gets a **score**:
-   - **Positive:** unseen boost, watch depth, creator/tag/collection affinity, duration taste, favorites, discovery (unseen from loved creators / strong tags).
+   - **Positive:** unseen boost, watch depth, creator/platform/tag/collection affinity, duration taste, favorites, discovery (unseen from loved creators / strong tags).
    - **Negative:** repeated quick skips, over-exposure, watched in last 3h / 24h.
 5. **Sample** — `ORDER BY -LN(random()) / score` (Gumbel trick) so high scores win often but not always the same top 10.
 
@@ -90,6 +97,8 @@ Edit [`FEED_TASTE_CONFIG`](../src/lib/feed/config.ts):
 |------|--------|
 | More discovery of unseen reels | ↑ `scoreWeights.unseenBoost`, `lovedCreatorUnseen`, `tagDiscoveryUnseen` |
 | Stick to known creators | ↑ `scoreWeights.creatorAffinity`, ↓ `unseenBoost` |
+| Prefer platforms you linger on | ↑ `scoreWeights.platformAffinity` |
+| Reduce generic hashtag influence | ↑ `tagAffinity.idfSmoothing` or `tagAffinity.minIdf` carefully |
 | Less repetition same session | ↑ `scoreWeights.recent3hPenalty`; client `exclude.maxSessionIds` |
 | Forgive skips | ↓ `scoreWeights.quickSkipPenalty`, loosen `classify.*` thresholds |
 | Prefer longer/shorter reels | Adjust `duration.*` bounds and `durationTaste*` weights |

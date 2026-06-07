@@ -77,6 +77,8 @@ describe("recordWatchSession", () => {
 });
 
 describe("addWatchTime", () => {
+  const rawValues = () => executeRaw.mock.calls[0].slice(1);
+
   it("no-ops when nothing to persist", async () => {
     await addWatchTime("reel-1", 0, 0, {});
     expect(executeRaw).not.toHaveBeenCalled();
@@ -105,5 +107,33 @@ describe("addWatchTime", () => {
   it("persists quick skip on bounce", async () => {
     await addWatchTime("reel-1", 2, 1, { durationSec: 120 });
     expect(executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists checkpoint watch time without classifying the session", async () => {
+    await addWatchTime("reel-1", 30, 30, {
+      durationSec: 60,
+      classify: false,
+    });
+
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    const values = rawValues();
+    expect(values[4]).toBe(0); // deepWatchCount increment
+    expect(values[5]).toBe(0); // quickSkipCount increment
+  });
+
+  it("classifies final flush from full-session totals instead of latest checkpoint", async () => {
+    await addWatchTime("reel-1", 1, 50, {
+      durationSec: 60,
+      classify: true,
+      classificationWatchSec: 55,
+      classificationPositionSec: 50,
+      classificationLoopCount: 0,
+    });
+
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    const values = rawValues();
+    expect(values[1]).toBe(0); // latest segment is below watch-second persistence threshold
+    expect(values[4]).toBe(1); // full session is still a deep watch
+    expect(values[5]).toBe(0);
   });
 });

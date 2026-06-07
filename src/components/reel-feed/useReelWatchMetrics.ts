@@ -31,21 +31,43 @@ export function useReelWatchMetrics({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const watched = useRef(false);
   const accumulatedWatchSec = useRef(0);
-  const sessionLoops = useRef(0);
+  const accumulatedLoops = useRef(0);
+  const sessionWatchSec = useRef(0);
+  const sessionMaxPositionSec = useRef(0);
+  const sessionLoopCount = useRef(0);
   const autoScrollLoops = useRef(0);
   const lastVideoTime = useRef(0);
   const lastLoopDetectTime = useRef(0);
 
-  const persistWatchTime = useCallback(() => {
+  const persistWatchTime = useCallback((classifySession = false) => {
     const sec = accumulatedWatchSec.current;
-    const loops = sessionLoops.current;
-    accumulatedWatchSec.current = 0;
-    sessionLoops.current = 0;
-    if (sec < S.minWatchSecToRecord && loops === 0) return;
+    const loops = accumulatedLoops.current;
+    const totalWatchSec = sessionWatchSec.current;
+    const totalLoops = sessionLoopCount.current;
     const el = videoRef.current;
-    flushWatchTime(reelId, sec, el?.currentTime ?? 0, {
+    const maxPositionSec = Math.max(sessionMaxPositionSec.current, el?.currentTime ?? 0);
+
+    accumulatedWatchSec.current = 0;
+    accumulatedLoops.current = 0;
+
+    if (classifySession) {
+      sessionWatchSec.current = 0;
+      sessionMaxPositionSec.current = 0;
+      sessionLoopCount.current = 0;
+      watched.current = false;
+    }
+
+    const hasPersistedActivity = sec >= S.minWatchSecToRecord || loops > 0;
+    const hasSessionActivity = totalWatchSec > 0 || totalLoops > 0;
+    if (!hasPersistedActivity && (!classifySession || !hasSessionActivity)) return;
+
+    flushWatchTime(reelId, sec, maxPositionSec, {
       durationSec,
       loopCount: loops,
+      classify: classifySession,
+      classificationWatchSec: totalWatchSec,
+      classificationPositionSec: maxPositionSec,
+      classificationLoopCount: totalLoops,
     }).catch(() => undefined);
   }, [reelId, durationSec]);
 
@@ -64,7 +86,7 @@ export function useReelWatchMetrics({
       lastVideoTime.current = 0;
       lastLoopDetectTime.current = 0;
       autoScrollLoops.current = 0;
-      persistWatchTime();
+      persistWatchTime(true);
       return;
     }
     autoScrollLoops.current = 0;
@@ -78,11 +100,14 @@ export function useReelWatchMetrics({
       if (!el.paused) {
         const t = el.currentTime;
         if (lastVideoTime.current > 0 && t >= lastVideoTime.current) {
-          accumulatedWatchSec.current += Math.min(
+          const delta = Math.min(
             t - lastVideoTime.current,
             P.maxWatchDeltaPerTick,
           );
+          accumulatedWatchSec.current += delta;
+          sessionWatchSec.current += delta;
         }
+        sessionMaxPositionSec.current = Math.max(sessionMaxPositionSec.current, t);
         lastVideoTime.current = t;
       }
 
@@ -93,7 +118,8 @@ export function useReelWatchMetrics({
         lastLoopDetectTime.current > duration * P.loopDetectPastRatio &&
         el.currentTime < duration * P.loopDetectRewindRatio
       ) {
-        sessionLoops.current += 1;
+        accumulatedLoops.current += 1;
+        sessionLoopCount.current += 1;
         if (autoScroll) {
           autoScrollLoops.current += 1;
           if (autoScrollLoops.current >= P.autoScrollLoops) {
@@ -112,7 +138,7 @@ export function useReelWatchMetrics({
   useEffect(() => {
     if (!isActive) return;
     const id = setInterval(() => {
-      if (accumulatedWatchSec.current >= S.checkpointMinSec) persistWatchTime();
+      if (accumulatedWatchSec.current >= S.checkpointMinSec) persistWatchTime(false);
     }, S.checkpointIntervalMs);
     return () => clearInterval(id);
   }, [isActive, persistWatchTime]);

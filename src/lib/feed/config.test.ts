@@ -11,6 +11,7 @@ describe("FEED_TASTE_CONFIG", () => {
     const w = FEED_TASTE_CONFIG.scoreWeights;
     expect(w.unseenBoost).toBeGreaterThan(0);
     expect(w.creatorAffinity).toBeGreaterThan(0);
+    expect(w.platformAffinity).toBeGreaterThan(0);
     expect(w.quickSkipPenalty).toBeGreaterThan(0);
   });
 
@@ -20,6 +21,11 @@ describe("FEED_TASTE_CONFIG", () => {
     expect(t.lovedCreatorMinRatio).toBeLessThanOrEqual(1);
     expect(t.strongTagMinRatio).toBeGreaterThan(0);
     expect(t.strongTagMinRatio).toBeLessThanOrEqual(1);
+  });
+
+  it("keeps tag IDF dampening positive", () => {
+    expect(FEED_TASTE_CONFIG.tagAffinity.idfSmoothing).toBeGreaterThanOrEqual(1);
+    expect(FEED_TASTE_CONFIG.tagAffinity.minIdf).toBeGreaterThan(0);
   });
 
   it("aligns session limits with engagement exports", () => {

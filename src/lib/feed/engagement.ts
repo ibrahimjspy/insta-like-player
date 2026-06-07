@@ -12,6 +12,17 @@ import { prisma } from "@/lib/db";
 
 export type { WatchFlushMetrics };
 
+export type EngagementFlushMetrics = Omit<WatchFlushMetrics, "watchSec" | "positionSec"> & {
+  /**
+   * Checkpoint flushes persist watch seconds for crash resilience but should not
+   * increment deep/skip counters until the session ends.
+   */
+  classify?: boolean;
+  classificationWatchSec?: number;
+  classificationPositionSec?: number;
+  classificationLoopCount?: number;
+};
+
 export const MIN_WATCH_SEC_TO_RECORD = FEED_TASTE_CONFIG.session.minWatchSecToRecord;
 export const MAX_WATCH_SEC_PER_FLUSH = FEED_TASTE_CONFIG.session.maxWatchSecPerFlush;
 
@@ -84,18 +95,25 @@ export async function addWatchTime(
   reelId: string,
   watchSec: number,
   positionSec = 0,
-  metrics: Omit<WatchFlushMetrics, "watchSec" | "positionSec"> = {},
+  metrics: EngagementFlushMetrics = {},
 ): Promise<void> {
   const sec = clampWatchSec(watchSec);
   const pos = Math.max(0, Math.round(positionSec));
   const loops = Math.max(0, Math.round(metrics.loopCount ?? 0));
 
-  const { deepWatch, quickSkip } = classifyWatchSession({
-    watchSec: sec || watchSec,
-    positionSec: pos,
-    durationSec: metrics.durationSec,
-    loopCount: loops,
-  });
+  const shouldClassify = metrics.classify ?? true;
+  const classificationWatchSec = metrics.classificationWatchSec ?? (sec || watchSec);
+  const classificationPositionSec = metrics.classificationPositionSec ?? pos;
+  const classificationLoopCount = metrics.classificationLoopCount ?? loops;
+
+  const { deepWatch, quickSkip } = shouldClassify
+    ? classifyWatchSession({
+        watchSec: classificationWatchSec,
+        positionSec: classificationPositionSec,
+        durationSec: metrics.durationSec,
+        loopCount: classificationLoopCount,
+      })
+    : { deepWatch: false, quickSkip: false };
 
   if (sec === 0 && loops === 0 && !deepWatch && !quickSkip) return;
 

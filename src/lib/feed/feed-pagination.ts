@@ -46,7 +46,7 @@ export function nextFeedPaginationState(params: {
 export function trackRecentReelId(
   recent: readonly string[],
   reelId: string,
-  max = FEED_TASTE_CONFIG.exclude.maxSessionIds,
+  max: number = FEED_TASTE_CONFIG.exclude.maxSessionIds,
 ): string[] {
   if (recent[recent.length - 1] === reelId) return [...recent];
   return [...recent.filter((id) => id !== reelId), reelId].slice(-max);

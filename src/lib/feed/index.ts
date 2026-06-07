@@ -13,6 +13,7 @@ export {
   MAX_WATCH_SEC_PER_FLUSH,
   MIN_WATCH_SEC_TO_RECORD,
   recordWatchSession,
+  type EngagementFlushMetrics,
   type WatchFlushMetrics,
 } from "@/lib/feed/engagement";
 export {

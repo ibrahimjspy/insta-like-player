@@ -48,6 +48,7 @@ export function buildSmartFeedIdsSql(
   const w = cfg.scoreWeights;
   const t = cfg.thresholds;
   const r = cfg.engagementRaw;
+  const tag = cfg.tagAffinity;
   const durCaseR = sqlDurationBucketCase('r."durationSec"');
   const durCaseEq = sqlDurationBucketCase('eq."durationSec"');
 
@@ -64,6 +65,7 @@ export function buildSmartFeedIdsSql(
         e."quickSkipCount",
         r."durationSec",
         r."creatorId",
+        r.platform,
         r."isFavorite",
         LEAST(
           e."totalWatchSec"::float / GREATEST(COALESCE(r."durationSec", ${sqlFloat(cfg.duration.defaultSec)}), 1),
@@ -73,13 +75,16 @@ export function buildSmartFeedIdsSql(
           e."maxPositionSec"::float / GREATEST(COALESCE(r."durationSec", ${sqlFloat(cfg.duration.defaultSec)}), 1),
           1
         ) AS peak_completion,
-        (
-          e."totalWatchSec"
-          + e."watchCount" * ${sqlFloat(r.perWatchCount)}
-          + e."deepWatchCount" * ${sqlFloat(r.perDeepWatch)}
-          + e."loopCount" * ${sqlFloat(r.perLoop)}
-          + e."quickSkipCount" * ${sqlFloat(r.perQuickSkip)}
-        )::float
+        GREATEST(
+          (
+            e."totalWatchSec"
+            + e."watchCount" * ${sqlFloat(r.perWatchCount)}
+            + e."deepWatchCount" * ${sqlFloat(r.perDeepWatch)}
+            + e."loopCount" * ${sqlFloat(r.perLoop)}
+            + e."quickSkipCount" * ${sqlFloat(r.perQuickSkip)}
+          )::float,
+          0
+        )
         * EXP(
           -EXTRACT(
             EPOCH FROM (
@@ -97,11 +102,38 @@ export function buildSmartFeedIdsSql(
       WHERE eq."creatorId" IS NOT NULL
       GROUP BY eq."creatorId"
     ),
-    tag_scores AS (
-      SELECT rh."B" AS "hashtagId", SUM(eq.decayed_eng)::float AS s
+    platform_scores AS (
+      SELECT eq.platform, SUM(eq.decayed_eng)::float AS s
       FROM eng eq
-      INNER JOIN "_ReelHashtags" rh ON rh."A" = eq."reelId"
-      GROUP BY rh."B"
+      GROUP BY eq.platform
+    ),
+    tag_document_counts AS (
+      SELECT rh."A" AS "hashtagId", COUNT(DISTINCT rh."B")::int AS reel_count
+      FROM "_ReelHashtags" rh
+      INNER JOIN "Reel" tr ON tr.id = rh."B"
+      WHERE tr.status = 'DOWNLOADED'
+      GROUP BY rh."A"
+    ),
+    library_size AS (
+      SELECT GREATEST(COUNT(*)::float, 1) AS downloaded_count
+      FROM "Reel"
+      WHERE status = 'DOWNLOADED'
+    ),
+    tag_scores AS (
+      SELECT
+        rh."A" AS "hashtagId",
+        SUM(
+          eq.decayed_eng
+          * GREATEST(
+              LN(${sqlFloat(tag.idfSmoothing)} + ls.downloaded_count / GREATEST(tdc.reel_count, 1)),
+              ${sqlFloat(tag.minIdf)}
+            )
+        )::float AS s
+      FROM eng eq
+      INNER JOIN "_ReelHashtags" rh ON rh."B" = eq."reelId"
+      INNER JOIN tag_document_counts tdc ON tdc."hashtagId" = rh."A"
+      CROSS JOIN library_size ls
+      GROUP BY rh."A"
     ),
     collection_scores AS (
       SELECT cr."collectionId", SUM(eq.decayed_eng)::float AS s
@@ -118,10 +150,11 @@ export function buildSmartFeedIdsSql(
     ),
     norms AS (
       SELECT
-        (SELECT COALESCE(MAX(s), 1) FROM creator_scores) AS max_creator,
-        (SELECT COALESCE(MAX(s), 1) FROM tag_scores) AS max_tag,
-        (SELECT COALESCE(MAX(s), 1) FROM collection_scores) AS max_collection,
-        (SELECT COALESCE(MAX(s), 1) FROM duration_taste) AS max_duration
+        (SELECT GREATEST(COALESCE(MAX(s), 0), 1) FROM creator_scores) AS max_creator,
+        (SELECT GREATEST(COALESCE(MAX(s), 0), 1) FROM platform_scores) AS max_platform,
+        (SELECT GREATEST(COALESCE(MAX(s), 0), 1) FROM tag_scores) AS max_tag,
+        (SELECT GREATEST(COALESCE(MAX(s), 0), 1) FROM collection_scores) AS max_collection,
+        (SELECT GREATEST(COALESCE(MAX(s), 0), 1) FROM duration_taste) AS max_duration
     ),
     loved_creators AS (
       SELECT cs.cid
@@ -137,14 +170,14 @@ export function buildSmartFeedIdsSql(
     ),
     reel_tag_affinity AS (
       SELECT
-        rh."A" AS "reelId",
+        rh."B" AS "reelId",
         SUM(ts.s / n.max_tag)::float AS tag_sum,
         COUNT(*) FILTER (WHERE st."hashtagId" IS NOT NULL)::int AS strong_tag_hits
       FROM "_ReelHashtags" rh
-      INNER JOIN tag_scores ts ON ts."hashtagId" = rh."B"
+      INNER JOIN tag_scores ts ON ts."hashtagId" = rh."A"
       CROSS JOIN norms n
-      LEFT JOIN strong_tags st ON st."hashtagId" = rh."B"
-      GROUP BY rh."A", n.max_tag
+      LEFT JOIN strong_tags st ON st."hashtagId" = rh."A"
+      GROUP BY rh."B", n.max_tag
     ),
     reel_collection_aff AS (
       SELECT cr."reelId", MAX(cs.s / n.max_collection)::float AS col_aff
@@ -163,6 +196,7 @@ export function buildSmartFeedIdsSql(
           + LEAST(COALESCE(eq."deepWatchCount", 0) * ${sqlFloat(w.deepWatchCount)}, ${sqlFloat(w.deepWatchCountCap)})
           + LEAST(COALESCE(eq."loopCount", 0) * ${sqlFloat(w.loopCount)}, ${sqlFloat(w.loopCountCap)})
           + COALESCE(cs.s / n.max_creator, 0) * ${sqlFloat(w.creatorAffinity)}
+          + COALESCE(ps.s / n.max_platform, 0) * ${sqlFloat(w.platformAffinity)}
           + COALESCE(rta.tag_sum, 0) * ${sqlFloat(w.tagSum)}
           + LEAST(COALESCE(rta.strong_tag_hits, 0) * ${sqlFloat(w.strongTagHit)}, ${sqlFloat(w.strongTagHitCap)})
           + COALESCE(rca.col_aff, 0) * ${sqlFloat(w.collectionAffinity)}
@@ -214,6 +248,7 @@ export function buildSmartFeedIdsSql(
       CROSS JOIN norms n
       LEFT JOIN eng eq ON eq."reelId" = r.id
       LEFT JOIN creator_scores cs ON cs.cid = r."creatorId"
+      LEFT JOIN platform_scores ps ON ps.platform = r.platform
       LEFT JOIN reel_tag_affinity rta ON rta."reelId" = r.id
       LEFT JOIN reel_collection_aff rca ON rca."reelId" = r.id
       LEFT JOIN loved_creators lc ON lc.cid = r."creatorId"

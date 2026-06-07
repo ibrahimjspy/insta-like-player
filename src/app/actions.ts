@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { addWatchTime, recordWatchSession } from "@/lib/feed";
+import { addWatchTime, recordWatchSession, type EngagementFlushMetrics } from "@/lib/feed";
 import { prisma } from "@/lib/db";
 import { deleteMediaFiles } from "@/lib/media";
 
@@ -71,7 +71,7 @@ export async function flushWatchTime(
   reelId: string,
   watchSec: number,
   positionSec = 0,
-  metrics?: { durationSec?: number | null; loopCount?: number },
+  metrics?: EngagementFlushMetrics,
 ): Promise<void> {
   await addWatchTime(reelId, watchSec, positionSec, metrics ?? {});
 }
