@@ -46,6 +46,7 @@ export const FEED_TASTE_CONFIG = {
     loopCount: 0.18,
     loopCountCap: 1.2,
     creatorAffinity: 1.45,
+    platformAffinity: 0.42,
     tagSum: 0.95,
     strongTagHit: 0.28,
     strongTagHitCap: 1.1,
@@ -81,6 +82,15 @@ export const FEED_TASTE_CONFIG = {
     recent24hWatchCount: 2,
   },
 
+  /**
+   * Tag affinity uses an IDF-style multiplier so generic tags like "fyp" do
+   * not drown out more specific interests.
+   */
+  tagAffinity: {
+    idfSmoothing: 1,
+    minIdf: 0.15,
+  },
+
   /** Session classification (`classifyWatchSession` in taste.ts). */
   classify: {
     deepCompletionMin: 0.82,
@@ -108,6 +118,7 @@ export const FEED_TASTE_CONFIG = {
   /** Feed player UI (`ReelFeed` / `ReelSlide`). */
   player: {
     muteStorageKey: "ilp_muted",
+    videoOnlyStorageKey: "ilp_video_only",
     doubleTapMs: 320,
     scrollSettleMs: 120,
     activeIntersectionRatio: 0.55,

@@ -18,6 +18,12 @@ describe("extractFacebookVideoId", () => {
       extractFacebookVideoId("https://www.facebook.com/watch/?v=1234567890123456"),
     ).toBe("1234567890123456");
   });
+
+  it("parses the /<user>/videos/<id>/ saved-video format", () => {
+    expect(
+      extractFacebookVideoId("https://www.facebook.com/Ripon.Chowdhury.0/videos/1888877651473929/"),
+    ).toBe("1888877651473929");
+  });
 });
 
 describe("isFacebookVideoUrl", () => {
@@ -65,6 +71,74 @@ describe("parseFacebookLikes", () => {
 
     const likes = parseFacebookLikes(raw);
     expect(likes[0]?.shortcode).toBe("999888777666");
+  });
+
+  it("parses saved videos nested in collections.json dict-of-dicts", () => {
+    const raw = [
+      {
+        timestamp: 1639581001,
+        media: [],
+        label_values: [
+          { label: "Title", value: "Tpp" },
+          {
+            dict: [
+              {
+                dict: [
+                  {
+                    label: "URL",
+                    value: "https://www.facebook.com/Ripon.Chowdhury.0/videos/1888877651473929/",
+                    href: "https://www.facebook.com/Ripon.Chowdhury.0/videos/1888877651473929/",
+                  },
+                  { label: "Name", value: "Ripon Chowdhury" },
+                ],
+                title: "",
+              },
+              {
+                dict: [
+                  {
+                    label: "URL",
+                    value: "https://www.facebook.com/nostalgic.playlist/videos/1227361231297154/",
+                  },
+                ],
+                title: "",
+              },
+            ],
+            title: "Saved items",
+          },
+        ],
+      },
+    ];
+
+    const likes = parseFacebookLikes(raw);
+    expect(likes).toHaveLength(2);
+    expect(likes.map((l) => l.shortcode)).toEqual([
+      "1888877651473929",
+      "1227361231297154",
+    ]);
+    expect(likes[0].platform).toBe("FACEBOOK");
+  });
+
+  it("deduplicates the value/href pair of the same saved video", () => {
+    const raw = [
+      {
+        label_values: [
+          {
+            dict: [
+              {
+                dict: [
+                  {
+                    label: "URL",
+                    value: "https://www.facebook.com/x/videos/555/",
+                    href: "https://www.facebook.com/x/videos/555/",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    expect(parseFacebookLikes(raw)).toHaveLength(1);
   });
 
   it("skips non-video reactions", () => {

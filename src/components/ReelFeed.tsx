@@ -4,6 +4,7 @@ import { Ban, ExternalLink, Heart, Trash2, Volume2, VolumeX } from "lucide-react
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { deleteReel, skipReel } from "@/app/actions";
+import { CollectionAddButton, type CollectionOption } from "@/components/CollectionAddButton";
 import { FavoriteButtonUI, useFavorite } from "@/components/FavoriteButton";
 import { useFeedActiveSlide, useOnReelActivated } from "@/components/reel-feed/useFeedActiveSlide";
 import { useReelWatchMetrics } from "@/components/reel-feed/useReelWatchMetrics";
@@ -39,6 +40,8 @@ interface Props {
   onOrderBarVisibility?: (visible: boolean) => void;
   onUserPaused?: (paused: boolean) => void;
   autoScroll?: boolean;
+  videoOnly?: boolean;
+  collections?: CollectionOption[];
 }
 
 export function ReelFeed({
@@ -51,6 +54,8 @@ export function ReelFeed({
   onOrderBarVisibility,
   onUserPaused: onUserPausedChange,
   autoScroll = false,
+  videoOnly = false,
+  collections,
 }: Props) {
   const [feedInit] = useState(() => initialFeedState(initialItems));
   const [items, setItems] = useState<FeedItem[]>(feedInit.items);
@@ -285,6 +290,8 @@ export function ReelFeed({
             onSkip={onSkip}
             onUserPaused={onUserPaused}
             autoScroll={autoScroll}
+            videoOnly={videoOnly}
+            collections={collections}
             onAutoScrollAdvance={advanceToNextSlide}
           />
         );
@@ -305,6 +312,8 @@ function ReelSlide({
   onSkip,
   onUserPaused,
   autoScroll,
+  videoOnly = false,
+  collections,
   onAutoScrollAdvance,
 }: {
   reel: FeedItem;
@@ -317,6 +326,8 @@ function ReelSlide({
   onSkip: (feedKey: string, reelId: string) => void;
   onUserPaused?: (paused: boolean) => void;
   autoScroll?: boolean;
+  videoOnly?: boolean;
+  collections?: CollectionOption[];
   onAutoScrollAdvance?: () => void;
 }) {
   const attachVideo = useVideoPreload(scrollRoot, reel.feedKey, isActive || isNearActive);
@@ -485,48 +496,57 @@ function ReelSlide({
       )}
 
       <div className="absolute right-3 bottom-4 z-20 flex flex-col items-center gap-4 md:bottom-12">
-        <FavoriteButtonUI fav={fav} onToggle={toggleFav} pending={favoritePending} />
-        <RailButton label={muted ? "Unmute" : "Mute"} onClick={onToggleMute}>
-          {muted ? <VolumeX size={26} /> : <Volume2 size={26} />}
-        </RailButton>
-        <a
-          href={reel.reelUrl}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={openOnPlatformLabel(reel.platform)}
-          className="grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white"
-        >
-          <ExternalLink size={24} />
-        </a>
-        <RailButton
-          label="Don't import (hide and never re-download)"
-          onClick={() => onSkip(reel.feedKey, reel.id)}
-        >
-          <Ban size={24} />
-        </RailButton>
-        <RailButton
-          label="Delete reel"
-          onClick={() => {
-            if (confirm("Delete this reel and its downloaded video?"))
-              onDelete(reel.feedKey, reel.id);
-          }}
-          className="hover:text-red-500"
-        >
-          <Trash2 size={24} />
-        </RailButton>
+        {!videoOnly && (
+          <>
+            <FavoriteButtonUI fav={fav} onToggle={toggleFav} pending={favoritePending} />
+            {collections && collections.length > 0 && (
+              <CollectionAddButton reelId={reel.id} collections={collections} />
+            )}
+            <RailButton label={muted ? "Unmute" : "Mute"} onClick={onToggleMute}>
+              {muted ? <VolumeX size={26} /> : <Volume2 size={26} />}
+            </RailButton>
+            <a
+              href={reel.reelUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={openOnPlatformLabel(reel.platform)}
+              className="grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white"
+            >
+              <ExternalLink size={24} />
+            </a>
+            <RailButton
+              label="Don't import (hide and never re-download)"
+              onClick={() => onSkip(reel.feedKey, reel.id)}
+            >
+              <Ban size={24} />
+            </RailButton>
+            <RailButton
+              label="Delete reel"
+              onClick={() => {
+                if (confirm("Delete this reel and its downloaded video?"))
+                  onDelete(reel.feedKey, reel.id);
+              }}
+              className="hover:text-red-500"
+            >
+              <Trash2 size={24} />
+            </RailButton>
+          </>
+        )}
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-4 pb-4">
-        {reel.creator && (
-          <p className="flex items-center gap-2 text-sm font-semibold text-white">
-            <PlatformBadge platform={reel.creator.platform} />
-            @{reel.creator.username}
-          </p>
-        )}
-        {reel.caption && (
-          <p className="mt-1 line-clamp-3 max-w-2xl text-sm text-white/80">{reel.caption}</p>
-        )}
-      </div>
+      {!videoOnly && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-4 pb-4">
+          {reel.creator && (
+            <p className="flex items-center gap-2 text-sm font-semibold text-white">
+              <PlatformBadge platform={reel.creator.platform} />
+              @{reel.creator.username}
+            </p>
+          )}
+          {reel.caption && (
+            <p className="mt-1 line-clamp-3 max-w-2xl text-sm text-white/80">{reel.caption}</p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

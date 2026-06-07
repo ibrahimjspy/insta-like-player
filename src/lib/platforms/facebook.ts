@@ -1,17 +1,20 @@
 import type { ParsedLike } from "@/lib/platforms/types";
 
-const VIDEO_URL_RE =
-  /facebook\.com\/(?:reel\/|watch\/?\?v=|video\.php\?v=)|fb\.watch\/|fb\.com\/watch/i;
-
 const REEL_ID_RE = /facebook\.com\/reel\/(\d+)/i;
-const WATCH_ID_RE = /[?&]v=(\d+)/i;
+// e.g. facebook.com/<user>/videos/1888877651473929/ (the saved-video shape)
+const VIDEOS_PATH_RE = /facebook\.com\/[^/]+\/videos\/(\d+)/i;
+const VIDEO_PHP_RE = /facebook\.com\/watch\/?\?v=(\d+)|[?&]v=(\d+)/i;
 const FBWATCH_ID_RE = /fb\.watch\/([A-Za-z0-9_-]+)/i;
 
-/// Extracts a stable id from a Facebook video/reel URL.
+/// Extracts a stable id from a Facebook video/reel URL. Returns null for
+/// non-video Facebook links (pages, profiles, plain posts).
 export function extractFacebookVideoId(url: string): string | null {
+  const watch = url.match(VIDEO_PHP_RE);
   return (
     url.match(REEL_ID_RE)?.[1] ??
-    url.match(WATCH_ID_RE)?.[1] ??
+    url.match(VIDEOS_PATH_RE)?.[1] ??
+    watch?.[1] ??
+    watch?.[2] ??
     url.match(FBWATCH_ID_RE)?.[1] ??
     null
   );
@@ -22,7 +25,8 @@ export function normalizeFacebookUrl(href: string): string {
 }
 
 export function isFacebookVideoUrl(url: string): boolean {
-  return VIDEO_URL_RE.test(url) && extractFacebookVideoId(url) !== null;
+  if (!/facebook\.com|fb\.watch/i.test(url)) return false;
+  return extractFacebookVideoId(url) !== null;
 }
 
 interface StringListItem {
@@ -141,13 +145,45 @@ function parseReactionEntry(entry: Record<string, unknown>): ParsedLike[] {
   return likes;
 }
 
-/// Parses Facebook's `likes_and_reactions/posts_and_comments.json` (and similar).
+/// Recursively extracts every Facebook video like nested anywhere in an entry.
+/// Covers `collections.json` (saved videos nested in dict-of-dicts) and any
+/// other shape where the URL isn't at a predictable top-level key.
+function parseNestedEntry(entry: Record<string, unknown>): ParsedLike[] {
+  const ts =
+    typeof entry.timestamp === "number"
+      ? new Date(entry.timestamp * 1000)
+      : typeof entry.timestamp_ms === "number"
+        ? new Date(entry.timestamp_ms)
+        : null;
+
+  const hrefs: string[] = [];
+  hrefsFromUnknown(entry, hrefs);
+
+  const likes: ParsedLike[] = [];
+  for (const href of hrefs) {
+    const like = parseFacebookHref(href, {
+      creatorUsername: null,
+      likedAt: ts,
+      caption: null,
+    });
+    if (like) likes.push(like);
+  }
+  return likes;
+}
+
+/// Parses Facebook video likes/saves from a "Download your information" JSON
+/// export. Handles several shapes Meta has shipped:
+///   - likes_and_reactions: reactions_v2 / reactions / likes_media_likes
+///   - saved_items_and_collections/collections.json: top-level array of
+///     collections with deeply nested {label:"URL"} video links
+///   - saved_items_and_collections/your_saved_items.json: saves_v2
 export function parseFacebookLikes(raw: unknown): ParsedLike[] {
   const root = raw as Record<string, unknown>;
   const entries =
     (root?.reactions_v2 as unknown[]) ??
     (root?.reactions as unknown[]) ??
     (root?.likes_media_likes as unknown[]) ??
+    (root?.saves_v2 as unknown[]) ??
     (Array.isArray(raw) ? (raw as unknown[]) : []);
 
   const likes: ParsedLike[] = [];
@@ -163,9 +199,10 @@ export function parseFacebookLikes(raw: unknown): ParsedLike[] {
     if (!entry || typeof entry !== "object") continue;
     const e = entry as Record<string, unknown>;
 
+    // Prefer a precise top-level URL when present (keeps creator/caption).
     if (Array.isArray(e.label_values)) {
-      push(parseLabelValueEntry(e));
-      continue;
+      const precise = parseLabelValueEntry(e);
+      if (precise) push(precise);
     }
 
     if (Array.isArray(e.string_list_data)) {
@@ -173,7 +210,8 @@ export function parseFacebookLikes(raw: unknown): ParsedLike[] {
       continue;
     }
 
-    for (const like of parseReactionEntry(e)) push(like);
+    // Catch-all: recurse for any nested video URLs not already captured.
+    for (const like of parseNestedEntry(e)) push(like);
   }
 
   return likes;

@@ -1,5 +1,5 @@
 import { FeedPageClient } from "@/components/FeedPageClient";
-import { getFeed, type FeedOrder } from "@/lib/queries";
+import { getCollections, getFeed, type FeedOrder } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +16,17 @@ export default async function FeedPage({
       ? (orderParam as FeedOrder)
       : "recent";
 
-  const page = await getFeed({ order });
+  const [page, collections] = await Promise.all([
+    getFeed({ order }),
+    getCollections(),
+  ]);
 
   return (
     <FeedPageClient
       order={order}
       initialItems={page.items}
       initialCursor={page.nextCursor}
+      collections={collections.map(({ id, name }) => ({ id, name }))}
     />
   );
 }

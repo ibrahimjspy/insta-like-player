@@ -16,7 +16,7 @@ export default async function CollectionsPage() {
     <ReaderPage>
       <PageHeader
         title="Collections"
-        description="Organize reels into curated groups. Add items from Search or while browsing."
+        description="Organize reels into curated groups. Add items from the feed or Search."
       />
 
       <form

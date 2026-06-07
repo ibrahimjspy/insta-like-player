@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { AutoScrollToggle } from "@/components/AutoScrollToggle";
+import { type CollectionOption } from "@/components/CollectionAddButton";
 import { OrderSelect } from "@/components/OrderSelect";
 import { useReaderChrome } from "@/components/ReaderChromeContext";
 import { ReelFeed } from "@/components/ReelFeed";
+import { VideoOnlyToggle } from "@/components/VideoOnlyToggle";
+import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
 import type { ReelView } from "@/lib/types";
 import type { FeedOrder } from "@/lib/queries";
 
@@ -13,13 +16,23 @@ interface Props {
   order: FeedOrder;
   initialItems: ReelView[];
   initialCursor: string | null;
+  collections?: CollectionOption[];
 }
 
-export function FeedPageClient({ order, initialItems, initialCursor }: Props) {
+export function FeedPageClient({ order, initialItems, initialCursor, collections }: Props) {
   const { setFeedPausedChrome } = useReaderChrome();
   const [showOrderBar, setShowOrderBar] = useState(initialItems.length === 0);
   const [userPaused, setUserPaused] = useState(false);
   const [autoScroll, setAutoScroll] = useState(false);
+  const [videoOnly, setVideoOnly] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(FEED_TASTE_CONFIG.player.videoOnlyStorageKey) === "true";
+  });
+
+  const onVideoOnlyChange = useCallback((enabled: boolean) => {
+    setVideoOnly(enabled);
+    localStorage.setItem(FEED_TASTE_CONFIG.player.videoOnlyStorageKey, String(enabled));
+  }, []);
 
   const onPausedChromeVisibility = useCallback(
     (visible: boolean) => {
@@ -45,7 +58,10 @@ export function FeedPageClient({ order, initialItems, initialCursor }: Props) {
       >
         <div className="flex items-center gap-2">
           {userPaused && initialItems.length > 0 && (
-            <AutoScrollToggle enabled={autoScroll} onChange={setAutoScroll} />
+            <>
+              <VideoOnlyToggle enabled={videoOnly} onChange={onVideoOnlyChange} />
+              <AutoScrollToggle enabled={autoScroll} onChange={setAutoScroll} />
+            </>
           )}
           <OrderSelect value={order} />
         </div>
@@ -56,6 +72,8 @@ export function FeedPageClient({ order, initialItems, initialCursor }: Props) {
         initialCursor={initialCursor}
         order={order}
         autoScroll={autoScroll}
+        videoOnly={videoOnly}
+        collections={collections}
         onOrderBarVisibility={onPausedChromeVisibility}
         onUserPaused={setUserPaused}
       />
