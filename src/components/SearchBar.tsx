@@ -7,14 +7,24 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
-export function SearchBar({ initialQuery = "" }: { initialQuery?: string }) {
+export function SearchBar({
+  initialQuery = "",
+  platform,
+}: {
+  initialQuery?: string;
+  platform?: string;
+}) {
   const router = useRouter();
   const [value, setValue] = useState(initialQuery);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const q = value.trim();
-    router.push(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (platform) params.set("platform", platform);
+    const query = params.toString();
+    router.push(query ? `/search?${query}` : "/search");
   };
 
   return (

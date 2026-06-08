@@ -85,6 +85,7 @@ export async function searchReels(params: {
 }): Promise<ReelCard[]> {
   const q = params.query?.trim();
   const where: Prisma.ReelWhereInput = { status: ReelStatus.DOWNLOADED };
+  if (params.platform) where.platform = params.platform;
 
   if (params.creator) {
     where.creator = {

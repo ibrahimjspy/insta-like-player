@@ -122,6 +122,15 @@ describe("searchReels", () => {
     expect(where.OR).toBeUndefined();
   });
 
+  it("filters by platform when provided", async () => {
+    reelFindMany.mockResolvedValue([]);
+    await searchReels({ platform: "FACEBOOK" });
+
+    const where = reelFindMany.mock.calls[0][0].where;
+    expect(where.platform).toBe("FACEBOOK");
+    expect(where.status).toBe("DOWNLOADED");
+  });
+
   it("strips a leading # from a hashtag query", async () => {
     reelFindMany.mockResolvedValue([]);
     await searchReels({ query: "#travel" });
