@@ -278,6 +278,7 @@ export function ReelFeed({
         const isNearActive =
           activeIndex >= 0 && Math.abs(index - activeIndex) <= 1;
         const showChrome = !videoOnly || (userPaused && activeReelId === reel.feedKey);
+        const liftChrome = userPaused && activeReelId === reel.feedKey;
         return (
           <ReelSlide
             key={reel.feedKey}
@@ -292,6 +293,7 @@ export function ReelFeed({
             onUserPaused={onUserPaused}
             autoScroll={autoScroll}
             showChrome={showChrome}
+            liftChrome={liftChrome}
             collections={collections}
             onAutoScrollAdvance={advanceToNextSlide}
           />
@@ -314,6 +316,7 @@ function ReelSlide({
   onUserPaused,
   autoScroll,
   showChrome = true,
+  liftChrome = false,
   collections,
   onAutoScrollAdvance,
 }: {
@@ -328,6 +331,7 @@ function ReelSlide({
   onUserPaused?: (paused: boolean) => void;
   autoScroll?: boolean;
   showChrome?: boolean;
+  liftChrome?: boolean;
   collections?: CollectionOption[];
   onAutoScrollAdvance?: () => void;
 }) {
@@ -500,12 +504,27 @@ function ReelSlide({
         </div>
       )}
 
-      <div className="absolute right-3 bottom-4 z-20 flex flex-col items-center gap-4 md:bottom-12">
+      <div
+        className={`absolute right-3 z-20 flex flex-col items-center gap-3 transition-[bottom,opacity] duration-200 ${
+          liftChrome
+            ? "bottom-[calc(5.5rem+env(safe-area-inset-bottom))]"
+            : "bottom-7 md:bottom-12"
+        }`}
+      >
         {showChrome && (
           <>
-            <FavoriteButtonUI fav={fav} onToggle={toggleFav} pending={favoritePending} />
+            <FavoriteButtonUI
+              fav={fav}
+              onToggle={toggleFav}
+              pending={favoritePending}
+              className="size-10 rounded-full bg-black/25 shadow-lg shadow-black/25 backdrop-blur-md hover:bg-black/35"
+            />
             {collections && collections.length > 0 && (
-              <CollectionAddButton reelId={reel.id} collections={collections} />
+              <CollectionAddButton
+                reelId={reel.id}
+                collections={collections}
+                className="size-10 rounded-full bg-black/25 shadow-lg shadow-black/25 backdrop-blur-md hover:bg-black/35"
+              />
             )}
             <RailButton label={muted ? "Unmute" : "Mute"} onClick={onToggleMute}>
               {muted ? <VolumeX size={26} /> : <Volume2 size={26} />}
@@ -517,7 +536,7 @@ function ReelSlide({
               aria-label={openOnPlatformLabel(reel.platform)}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
-              className="grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white"
+              className="grid size-10 place-items-center rounded-full bg-black/25 text-white/90 shadow-lg shadow-black/25 backdrop-blur-md transition-transform active:scale-90 hover:bg-black/35 hover:text-white"
             >
               <ExternalLink size={24} />
             </a>
@@ -542,7 +561,13 @@ function ReelSlide({
       </div>
 
       {showChrome && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-4 pb-4">
+        <div
+          className={`pointer-events-none absolute inset-x-0 z-10 bg-gradient-to-t from-black/85 via-black/35 to-transparent px-4 pt-20 transition-[bottom,padding] duration-200 ${
+            liftChrome
+              ? "bottom-[calc(4.15rem+env(safe-area-inset-bottom))] pb-3"
+              : "bottom-0 pb-4"
+          }`}
+        >
           {reel.creator && (
             <p className="flex items-center gap-2 text-sm font-semibold text-white">
               <PlatformBadge platform={reel.creator.platform} />
@@ -621,7 +646,7 @@ function RailButton({
       }}
       aria-label={label}
       title={label}
-      className={`grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white ${className}`}
+      className={`grid size-10 place-items-center rounded-full bg-black/25 text-white/90 shadow-lg shadow-black/25 backdrop-blur-md transition-transform active:scale-90 hover:bg-black/35 hover:text-white ${className}`}
     >
       {children}
     </button>

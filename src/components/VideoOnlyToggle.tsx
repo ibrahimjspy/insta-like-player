@@ -15,14 +15,14 @@ export function VideoOnlyToggle({ enabled, onChange }: Props) {
       aria-label={enabled ? "Video-only mode on" : "Video-only mode off"}
       aria-pressed={enabled}
       title={enabled ? "Video-only on — tap to show overlays" : "Video-only off — hide icons and captions"}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold transition-colors ${
         enabled
-          ? "border-white/20 bg-white text-black"
-          : "border-white/10 bg-black/50 text-white/80 backdrop-blur-md hover:text-white"
+          ? "bg-white text-black"
+          : "bg-white/8 text-white/65 hover:bg-white/12 hover:text-white"
       }`}
     >
       <ScanEye size={15} strokeWidth={2} />
-      Clean
+      <span className="hidden sm:inline">Clean</span>
     </button>
   );
 }

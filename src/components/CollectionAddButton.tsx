@@ -13,9 +13,11 @@ export interface CollectionOption {
 export function CollectionAddButton({
   reelId,
   collections,
+  className = "",
 }: {
   reelId: string;
   collections: CollectionOption[];
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [addedTo, setAddedTo] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export function CollectionAddButton({
         aria-label="Add to collection"
         aria-expanded={open}
         title="Add to collection"
-        className="grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white"
+        className={`grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white ${className}`}
       >
         <Library size={24} />
       </button>

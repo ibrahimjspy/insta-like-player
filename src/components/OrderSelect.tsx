@@ -13,7 +13,7 @@ export function OrderSelect({ value }: { value: string }) {
 
   return (
     <div
-      className="flex gap-0.5 rounded-full border border-white/10 bg-black/55 p-0.5 backdrop-blur-md"
+      className="flex gap-0.5 rounded-full bg-white/8 p-0.5"
       role="tablist"
       aria-label="Feed order"
     >
@@ -26,10 +26,10 @@ export function OrderSelect({ value }: { value: string }) {
             role="tab"
             aria-selected={active}
             onClick={() => router.push(`/?order=${opt.value}`)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
               active
                 ? "bg-white text-black shadow-sm"
-                : "text-white/75 hover:text-white"
+                : "text-white/65 hover:bg-white/8 hover:text-white"
             }`}
           >
             {opt.label}
