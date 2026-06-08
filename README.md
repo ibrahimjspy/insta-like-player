@@ -1,194 +1,244 @@
-# Insta Like Player
+# Like Player
 
-Turn your Instagram **liked Reels** into a personal, searchable, scrollable video
-library. Import your likes from Instagram's official data export, download the
-media locally, and browse everything in a clean web app — a continuous vertical
-feed, full-text search, creator filters, favorites, and custom collections.
+**Turn your liked videos into a private, searchable, TikTok-style library.**
 
-> Personal project. Not affiliated with Instagram. Use it only with your own
-> account data and respect creators' copyright.
+Import likes from Instagram, TikTok, and Facebook using each platform's official
+data export. Download the media locally with `yt-dlp`. Browse everything in a
+fast web app — vertical feed, full-text search, favorites, and custom collections.
+
+Not affiliated with Meta, ByteDance, or any social platform. Use only with **your
+own** exported data.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/ibrahimjspy/insta-like-player/actions/workflows/ci.yml/badge.svg)](https://github.com/ibrahimjspy/insta-like-player/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
+
+---
+
+## Why this exists
+
+Social platforms bury your likes in export ZIPs and expired CDN links. Like Player
+gives you:
+
+- **One library** for Instagram Reels, TikTok videos, and Facebook saved/reacted videos
+- **Local files** — no streaming from expired URLs; seekable playback from disk
+- **A real feed** — Recent, Oldest, or a **For you** ranker that learns from watch time
+- **Search** — caption, creator, hashtag, and platform filters
+- **Collections & favorites** — curate subsets without touching the original platforms
+- **Self-hosted** — single-user, runs on your machine; optional Tailscale access from your phone
+
+No scraping. No login automation. Discovery comes from official exports; downloads
+use `yt-dlp` with optional session cookies you provide.
+
+---
 
 ## How it works
 
 ```
-liked_posts.json  ──►  ingest  ──►  PostgreSQL  ◄──  sync (yt-dlp)  ──►  /data/media
-                                        │
-                                        ▼
-                                   Next.js web app
-                          Reader (/)  ·  Admin (/admin)
+Platform export (JSON)  ──►  ingest  ──►  PostgreSQL  ◄──  sync (yt-dlp)  ──►  data/media
+                                              │
+                                              ▼
+                                         Next.js web app
+                               Reader (/)  ·  Admin (/admin)
 ```
 
-1. **Import** — Instagram's "Download Your Information" gives you a
-   `liked_posts.json`. The ingest step parses it into the database. No manual
-   link copying.
-2. **Sync** — a worker runs [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) to
-   download each reel's video + thumbnail + metadata into `data/media`.
-3. **Browse** — the reader app plays your downloaded reels.
+| Step | What happens |
+|------|----------------|
+| **Import** | Parse `liked_posts.json`, `user_data_tiktok.json`, or Facebook `posts_and_comments.json` / saved collections into the DB |
+| **Sync** | Download video + thumbnail + metadata for each pending item |
+| **Browse** | Stream from `/api/media/...` with HTTP range support (scrubbing works) |
 
-There are **two areas**:
+---
 
-- **Reader (`/`)** — the feed (Recent / Oldest / **For you** personalized),
-  search, collections, favorites.
-- **Admin (`/admin`)** — import the export, run/monitor syncs, manage reels.
+## Features
 
-## Tech stack
+### Reader (`/`)
 
-Next.js (App Router) · TypeScript · Tailwind CSS · PostgreSQL · Prisma 7 ·
-`yt-dlp` · Docker Compose.
+- Infinite vertical feed with tap-to-pause chrome
+- Sort: **Recent** · **Oldest** · **For you** (personalized from watch behavior)
+- Auto-scroll and video-only modes while paused
+- Search by text, creator, or platform
+- Favorites and user-defined collections
 
-## Prerequisites
+### Admin (`/admin`)
 
-- Node.js 20+
-- Docker (for Postgres) — or your own PostgreSQL instance
-- [`yt-dlp`](https://github.com/yt-dlp/yt-dlp): `brew install yt-dlp` (macOS)
+- Upload exports per platform
+- Run and monitor background sync
+- Inspect reel status (pending, downloaded, failed, unavailable)
 
-## Getting started
+### For you feed
+
+Not random — ranks reels from engagement signals (watch time, loops, deep watches
+vs quick skips, creator/hashtag/collection affinity). Tune weights in
+`src/lib/feed/config.ts`. Design doc: [docs/FEED_RECOMMENDATIONS.md](docs/FEED_RECOMMENDATIONS.md).
+
+---
+
+## Supported platforms
+
+| Platform | Export file | CLI flag |
+|----------|-------------|----------|
+| Instagram | `liked_posts.json` (Likes, JSON, all time) | `--platform instagram` (default) |
+| TikTok | `user_data_tiktok.json` (include **Likes**) | `--platform tiktok` |
+| Facebook | `likes_and_reactions/posts_and_comments.json`, saved collections, or `your_saved_items.json` | `--platform facebook` |
+
+Each platform uses the same pipeline; media is stored as
+`<platform>_<id>.mp4` (Instagram keeps bare shortcodes for backward compatibility).
+
+---
+
+## Quick start
+
+**Prerequisites:** Node.js 20+, Docker (for Postgres), [`yt-dlp`](https://github.com/yt-dlp/yt-dlp)
 
 ```bash
-# 1. Install dependencies
+git clone https://github.com/ibrahimjspy/insta-like-player.git
+cd insta-like-player
 npm install
 
-# 2. Configure environment
-cp .env.example .env        # edit if your Postgres port/credentials differ
-
-# 3. Start Postgres and apply the schema
-npm run db:up
-npm run db:push
-
-# 4. Run the app
-npm run dev                 # http://localhost:3000  (reader)
-                            # http://localhost:3000/admin
+cp .env.example .env          # edit DATABASE_URL if port 5432 is taken
+npm run db:up && npm run db:push
+npm run dev                   # http://localhost:3000
 ```
 
-## Getting your liked reels into the library
+### Import your likes
 
-### Step 1 — Export your likes from Instagram
+**Admin UI:** open `/admin` → pick platform → upload JSON → Sync.
 
-1. Instagram → **Settings → Accounts Center → Your information and permissions →
-   Download your information**.
-2. **Download or transfer information** → your account → **Some of your information**.
-3. Under **Your Instagram activity**, select **Likes** only.
-4. **Format: JSON**, **Date range: All time** → submit.
-5. When the ZIP is ready, extract `your_instagram_activity/likes/liked_posts.json`.
-
-### Step 2 — Import + download
-
-Either through the **Admin** UI (upload the JSON, then click *Sync*), or via the CLI:
+**CLI:**
 
 ```bash
-npm run ingest -- path/to/liked_posts.json   # load likes into the DB
-npm run sync                                  # download media with yt-dlp
+# Instagram (default)
+npm run ingest -- path/to/liked_posts.json
+
+# TikTok
+npm run ingest -- --platform tiktok path/to/user_data_tiktok.json
+
+# Facebook
+npm run ingest -- --platform facebook path/to/posts_and_comments.json
+
+npm run sync                  # download pending media
+npm run sync -- --limit 50    # batch of 50
+npm run sync -- --retry       # include previously failed reels
 ```
 
-Useful sync flags:
+### Cookies (recommended for downloads)
+
+Platforms gate media behind login. Export a Netscape `cookies.txt` from a
+logged-in browser session and set per-platform paths in `.env`:
 
 ```bash
-npm run sync -- --limit 50      # only the next 50 pending reels
-npm run sync -- --retry         # also re-attempt previously failed reels
+YTDLP_COOKIES_INSTAGRAM="./data/cookies-instagram.txt"
+YTDLP_COOKIES_TIKTOK="./data/cookies-tiktok.txt"
+YTDLP_COOKIES_FACEBOOK="./data/cookies-facebook.txt"
 ```
+
+TikTok often needs browser impersonation — see comments in `.env.example`.
+
+---
 
 ## Configuration
 
-All config lives in `.env` (see `.env.example`) and is loaded through a single
-typed module at `src/lib/config.ts`:
+All settings flow through `.env` → `src/lib/config.ts`:
 
-| Variable             | Default                | Description                                  |
-| -------------------- | ---------------------- | -------------------------------------------- |
-| `DATABASE_URL`       | local Postgres         | PostgreSQL connection string                 |
-| `MEDIA_DIR`          | `./data/media`         | Where downloaded videos/thumbnails are saved |
-| `FEED_PAGE_SIZE`     | `10`                   | Reels loaded per feed page                   |
-| `YTDLP_PATH`         | `yt-dlp`               | Path to the yt-dlp binary                    |
-| `YTDLP_COOKIES_FILE` | _(unset)_              | Optional Netscape cookies.txt for reliability |
-| `SYNC_RATE_LIMIT_MS` | `4000`                 | Delay between (sequential) downloads (be polite) |
-| `SYNC_MAX_RETRIES`   | `3`                    | Retries per reel                             |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | local Docker Postgres | PostgreSQL connection string |
+| `MEDIA_DIR` | `./data/media` | Downloaded videos and thumbnails |
+| `FEED_PAGE_SIZE` | `10` | Reels per infinite-scroll page |
+| `YTDLP_PATH` | `yt-dlp` | Path to yt-dlp binary |
+| `YTDLP_COOKIES_*` | _(unset)_ | Per-platform Netscape cookies |
+| `YTDLP_IMPERSONATE_TIKTOK` | `chrome` | TLS fingerprint for TikTok 403s |
+| `SYNC_RATE_LIMIT_MS` | `4000` | Delay between sequential downloads |
+| `SYNC_MAX_RETRIES` | `3` | Retries before marking FAILED |
+| `SYNC_REELS_ONLY` | `true` | Skip non-video likes (e.g. Instagram `/p/` photos) |
 
-### yt-dlp cookies (optional but recommended)
-
-Instagram rate-limits anonymous requests. Export a `cookies.txt` from a
-logged-in browser session (e.g. with a "Get cookies.txt" extension), then set
-`YTDLP_COOKIES_FILE=./data/cookies.txt`. The file is gitignored.
+---
 
 ## Scripts
 
-| Command              | Description                              |
-| -------------------- | ---------------------------------------- |
-| `npm run dev`        | Start the Next.js dev server             |
-| `npm run build`      | Production build                         |
-| `npm test`           | Run the Vitest test suite                |
-| `npm run test:watch` | Run tests in watch mode                  |
-| `npm run lint`       | Run ESLint                               |
-| `npm run ingest`     | Import a `liked_posts.json` export       |
-| `npm run sync`       | Download pending reels via yt-dlp        |
-| `npm run db:up`      | Start the Postgres container             |
-| `npm run db:down`    | Stop the Postgres container              |
-| `npm run db:push`    | Apply the Prisma schema to the database  |
-| `npm run db:studio`  | Open Prisma Studio                       |
-| `npm run serve`      | Production server on port 7319 (all interfaces) |
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Development server |
+| `npm run build` | Production build + typecheck |
+| `npm test` | Vitest unit tests |
+| `npm run lint` | ESLint |
+| `npm run ingest` | Import a platform export |
+| `npm run sync` | Download pending reels |
+| `npm run db:up` / `db:down` | Start/stop Postgres container |
+| `npm run db:push` | Apply Prisma schema |
+| `npm run serve` | Production server on port 7319 |
+
+---
 
 ## Project structure
 
 ```
-prisma/schema.prisma      Data model (reels, creators, collections, …)
-prisma.config.ts          Prisma 7 datasource config
-scripts/ingest.ts         CLI: liked_posts.json -> DB
-scripts/sync.ts           CLI: yt-dlp downloader
-src/lib/                  config, db, queries, feed/, ingest/sync core, helpers
-docs/                     FEED_RECOMMENDATIONS.md (For you algorithm)
-src/app/(reader)/         Reader UI: feed, search, collections, favorites
-src/app/admin/            Admin UI: dashboard, reels table
-src/app/api/              Media streaming + feed + admin endpoints
-src/components/           Shared React components
+prisma/schema.prisma       Reels, creators, hashtags, collections, engagement
+src/lib/platforms/         Instagram, TikTok, Facebook export parsers
+src/lib/feed/              For you scoring, taste classification, SQL ranker
+src/lib/queries.ts         Feed, search, collections, favorites
+src/app/(reader)/          Feed, search, collections, favorites
+src/app/admin/             Import, sync, reel management
+src/app/api/media/         Local media streaming with range requests
+docs/                      FEED_RECOMMENDATIONS.md, DEPLOYMENT.md
 ```
 
-## Handing off to another machine / AI agent
+---
 
-For a single self-contained context dump (cookie workflow, the download
-pipeline, current state, ops, and gotchas) suitable to hand to a new contributor
-or AI agent, see **[HANDOFF.md](./HANDOFF.md)**.
+## Self-hosting
 
-## Deploying / self-hosting
-
-To run this as an always-on personal server you can reach from your phone and
-other devices over a private [Tailscale](https://tailscale.com) network (no
-cloud, no exposed data, free), see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
-
-Quick version:
+Run as an always-on personal server and reach it from your phone over
+[Tailscale](https://tailscale.com) — no cloud, no public exposure. See
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
 ```bash
 npm run build
-bash scripts/install-service.sh        # always-on launchd service on port 7319
-tailscale serve --bg 7319              # private HTTPS URL for all your devices
+bash scripts/install-service.sh   # macOS launchd agent on port 7319
+tailscale serve --bg 7319         # private HTTPS on your tailnet
 ```
+
+---
 
 ## Testing
 
-Unit tests live next to their source as `*.test.ts` and run under
-[Vitest](https://vitest.dev):
-
 ```bash
-npm test            # run once
-npm run test:watch  # watch mode
+npm test            # full suite
+npm test -- src/lib/feed   # after feed algorithm changes
 ```
 
-The suite covers the core logic — URL/hashtag parsing, export parsing and
-idempotent import, feed pagination and search filters, **For you taste/scoring**
-(`src/lib/feed/`), media path safety, and the yt-dlp argument/output helpers.
-Database access is mocked, so no Postgres or network is required to run the tests.
+Tests cover export parsers (all three platforms), feed pagination and scoring,
+search filters, media path safety, and yt-dlp helpers. Prisma is mocked — no DB
+required.
 
-For you feed design and tuning: **[docs/FEED_RECOMMENDATIONS.md](./docs/FEED_RECOMMENDATIONS.md)**.
+---
 
-## Legal & privacy notes
+## Tech stack
 
-- Only use this with **your own** liked content. It does not access private
-  content you couldn't otherwise view.
-- Downloaded media and your export are stored locally in `data/` and are
-  gitignored — nothing personal is committed.
-- Automated access to Instagram may conflict with their Terms of Service. This
-  project uses the **official data export** for discovery (no scraping) and
-  `yt-dlp` only for fetching media you already liked. Use at your own risk.
+Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · PostgreSQL · Prisma 7 ·
+`yt-dlp` · Docker Compose · Vitest
 
-## Roadmap ideas
+---
 
-- Playwright-based auto-sync of new likes (behind a flag)
-- Resume-from-last-position in the feed
-- Tag/auto-categorize reels into collections
+## Legal & privacy
+
+- Only use with **your own** exported data. The app does not bypass platform access controls.
+- Media and exports live in `data/` (gitignored). Nothing personal belongs in git.
+- Automated downloading may conflict with platform Terms of Service. Discovery uses
+  official exports; downloads are read-only fetches of content you already liked.
+  **Use at your own risk.**
+
+---
+
+## Contributing
+
+Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). For AI-assisted
+development, see [CLAUDE.md](CLAUDE.md).
+
+If this project saves you from losing liked videos to the algorithm, consider
+**starring the repo** — it helps others find it.
+
+## License
+
+[MIT](LICENSE)

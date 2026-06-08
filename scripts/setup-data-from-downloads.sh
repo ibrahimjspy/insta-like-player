@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p data/media data/logs
 
-COOKIES_SRC="${1:-$HOME/Downloads/ibrahim-insta.txt}"
+COOKIES_SRC="${1:-$HOME/Downloads/cookies.txt}"
 if [[ -f "$COOKIES_SRC" ]]; then
   cp "$COOKIES_SRC" data/cookies.txt
   echo "OK: cookies -> data/cookies.txt"

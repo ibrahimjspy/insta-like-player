@@ -119,32 +119,6 @@ function parseLegacyEntry(entry: Record<string, unknown>): ParsedLike[] {
   return likes;
 }
 
-function parseReactionEntry(entry: Record<string, unknown>): ParsedLike[] {
-  const ts =
-    typeof entry.timestamp === "number"
-      ? new Date(entry.timestamp * 1000)
-      : typeof entry.timestamp_ms === "number"
-        ? new Date(entry.timestamp_ms)
-        : null;
-
-  const hrefs: string[] = [];
-  hrefsFromUnknown(entry, hrefs);
-
-  const title = typeof entry.title === "string" ? entry.title : null;
-  const likes: ParsedLike[] = [];
-
-  for (const href of hrefs) {
-    const like = parseFacebookHref(href, {
-      creatorUsername: title,
-      likedAt: ts,
-      caption: title,
-    });
-    if (like) likes.push(like);
-  }
-
-  return likes;
-}
-
 /// Recursively extracts every Facebook video like nested anywhere in an entry.
 /// Covers `collections.json` (saved videos nested in dict-of-dicts) and any
 /// other shape where the URL isn't at a predictable top-level key.

@@ -34,11 +34,14 @@ yarn-error.log*
 .env*
 !.env.example
 
-# downloaded reel media + Instagram exports + cookies (personal data)
+# downloaded media + platform exports + cookies (personal data — never commit)
 /data
 *.info.json
 liked_posts.json
-cookies.txt
+user_data_tiktok.json
+posts_and_comments.json
+cookies*.txt
+facebook_collections.json
 
 # prisma generated client
 /generated
