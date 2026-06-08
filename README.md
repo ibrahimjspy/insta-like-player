@@ -14,6 +14,24 @@ own** exported data.
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
 
+<p align="center">
+  <img src="docs/media/feed.png" alt="Like Player — vertical For you feed" width="300"><br>
+  <sub><b>For you feed</b> — vertical, snap-scrolling, ranked by your watch behavior</sub>
+</p>
+
+---
+
+## Screenshots
+
+<p align="center"><b>Search</b> — caption, creator, or hashtag, filtered by platform</p>
+<p align="center"><img src="docs/media/search.png" alt="Search with platform pills and creator chips" width="100%"></p>
+
+<p align="center"><b>Admin dashboard</b> — library stats, per-platform import, and live sync</p>
+<p align="center"><img src="docs/media/admin.png" alt="Admin dashboard" width="100%"></p>
+
+<p align="center"><b>Collections</b> — curate subsets without touching the original platforms</p>
+<p align="center"><img src="docs/media/collections.png" alt="Collections" width="100%"></p>
+
 ---
 
 ## Why this exists
