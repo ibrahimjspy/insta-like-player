@@ -34,6 +34,21 @@ own** exported data.
 
 ---
 
+## Contents
+
+[Why this exists](#why-this-exists) ·
+[How it works](#how-it-works) ·
+[Features](#features) ·
+[Supported platforms](#supported-platforms) ·
+[Quick start](#quick-start) ·
+[Configuration](#configuration) ·
+[FAQ](#faq) ·
+[Roadmap](#roadmap) ·
+[Self-hosting](#self-hosting) ·
+[Legal & privacy](#legal--privacy)
+
+---
+
 ## Why this exists
 
 Social platforms bury your likes in export ZIPs and expired CDN links. Like Player
@@ -48,6 +63,15 @@ gives you:
 
 No scraping. No login automation. Discovery comes from official exports; downloads
 use `yt-dlp` with optional session cookies you provide.
+
+### Why not just keep the export?
+
+| Instead of… | …you get with Like Player |
+|-------------|---------------------------|
+| A `liked_posts.json` you'll never open again | A scrollable, watchable feed of the actual videos |
+| Saves & bookmarks that vanish when posts are deleted | Local copies that survive takedowns and expired CDN links |
+| A folder of `yt-dlp` files named by ID | Captions, creators, hashtags, search, and collections |
+| Re-finding things at the algorithm's whim | A **For you** feed ranked by *your* watch behavior |
 
 ---
 
@@ -239,6 +263,45 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · PostgreSQL · Prisma
 
 ---
 
+## FAQ
+
+**Will my account get banned?**
+Downloads are read-only and rate-limited — sequential, one at a time, with
+`SYNC_RATE_LIMIT_MS` ≥ 4000 by default. The app never likes, follows, comments,
+or posts. As with any `yt-dlp` use there's mild risk on a main account; go slow,
+or use a throwaway session for the cookies.
+
+**Is this legal?**
+You only process **your own** exported data and download content you already
+liked. The app doesn't bypass access controls or scrape. Automated downloading
+may still conflict with a platform's Terms of Service — use at your own risk.
+
+**Do I need cookies?**
+For discovery, no — the official export already lists your likes. For
+*downloading*, most platforms gate media behind login, so a Netscape
+`cookies.txt` makes sync far more reliable. TikTok also often needs browser
+impersonation (see `.env.example`).
+
+**Does it run on Windows / Linux?**
+Yes — it's Node + Docker + `yt-dlp`. Only the always-on service scripts
+(`launchd`) are macOS-specific; on Linux run `npm run serve` under systemd.
+Everything else is cross-platform.
+
+**Why Postgres instead of SQLite?**
+The **For you** ranker runs a single scoring SQL query per page over engagement
+rollups; Postgres keeps that fast with a clean schema, and Docker Compose makes
+it one command to start.
+
+**Does it download photos too?**
+By default it fetches videos only (`SYNC_REELS_ONLY=true`) and skips photo posts.
+Set it to `false` to attempt everything.
+
+**Can it auto-sync new likes?**
+Not by default — discovery is export-based to stay scraping-free. An opt-in,
+flagged Playwright auto-sync is on the roadmap.
+
+---
+
 ## Legal & privacy
 
 - Only use with **your own** exported data. The app does not bypass platform access controls.
@@ -246,6 +309,19 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · PostgreSQL · Prisma
 - Automated downloading may conflict with platform Terms of Service. Discovery uses
   official exports; downloads are read-only fetches of content you already liked.
   **Use at your own risk.**
+
+---
+
+## Roadmap
+
+- [ ] Resume-from-last-position in the feed
+- [ ] Auto-tagging and smart collections
+- [ ] Opt-in, flagged Playwright auto-sync of new likes
+- [ ] `gallery-dl` fallback engine for stubborn downloads
+- [ ] One-click "reset library" in Admin
+
+Have an idea? [Open an issue](https://github.com/ibrahimjspy/insta-like-player/issues)
+or send a PR — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
