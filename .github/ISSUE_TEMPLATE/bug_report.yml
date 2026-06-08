@@ -1,0 +1,68 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please don't include cookies,
+        `DATABASE_URL`, or other secrets in logs you paste here.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I run `npm run sync`, …
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Import a … export
+        2. Run `npm run …`
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Ingest (import / parsing)
+        - Sync (yt-dlp download)
+        - Reader UI (feed / search / collections)
+        - Admin UI
+        - For you feed / ranking
+        - Setup / deployment
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Source platform (if relevant)
+      options:
+        - Not applicable
+        - Instagram
+        - TikTok
+        - Facebook
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Node version (`node -v`), yt-dlp version (`yt-dlp --version`), and how you're running it.
+      placeholder: |
+        OS: macOS 15.4
+        Node: v20.x
+        yt-dlp: 2026.xx.xx
+        Running via: npm run dev
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / errors
+      description: Relevant output. Redact any secrets.
+      render: shell

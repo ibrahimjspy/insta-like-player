@@ -328,7 +328,9 @@ or send a PR — see [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Contributing
 
 Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). For AI-assisted
-development, see [CLAUDE.md](CLAUDE.md).
+development, see [CLAUDE.md](CLAUDE.md). Found a security issue? See
+[SECURITY.md](SECURITY.md). Notable changes are tracked in
+[CHANGELOG.md](CHANGELOG.md).
 
 If this project saves you from losing liked videos to the algorithm, consider
 **starring the repo** — it helps others find it.
