@@ -5,13 +5,13 @@ here using the **exact filenames** below and the README renders automatically.
 
 | Filename | View | How to reach it | Suggested capture |
 |----------|------|-----------------|-------------------|
-| `feed.png` | For you feed (hero) | `/` → tap a video to pause and show chrome | Phone-style portrait, ~390×844 device frame |
+| `demo.gif` | For you feed (hero) | `/` → record a short feed scroll | Phone device frame (DevTools), ~5–7s |
 | `search.png` | Search | `/search` → type a query, show platform pills + creator chips | Desktop window, ~1280×800 |
 | `admin.png` | Admin dashboard | `/admin` | Desktop window, ~1280×800 |
 | `collections.png` | Collections | `/collections` (or `/favorites`) | Desktop window, ~1280×800 |
 
-Optional: `demo.gif` — a short screen recording of scrolling the feed. If you add
-one, reference it as the hero in the README instead of `feed.png`.
+Source recordings (`.mov`) are gitignored — keep them outside the repo. Only the
+exported `demo.gif` is committed.
 
 ## Capturing good screenshots
 

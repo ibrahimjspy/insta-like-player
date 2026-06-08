@@ -43,6 +43,9 @@ posts_and_comments.json
 cookies*.txt
 facebook_collections.json
 
+# raw screen recordings — only the exported docs/media/*.gif is committed
+*.mov
+
 # prisma generated client
 /generated
 
