@@ -13,6 +13,8 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://insta:insta@localhost:5432/insta_like_player?schema=public
     steps:
       - uses: actions/checkout@v4
 
@@ -30,5 +32,3 @@ jobs:
       - run: npm test
 
       - run: npm run build
-        env:
-          DATABASE_URL: postgresql://insta:insta@localhost:5432/insta_like_player?schema=public
