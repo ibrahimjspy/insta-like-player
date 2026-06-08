@@ -165,10 +165,22 @@ npm run sync -- --limit 50    # batch of 50
 npm run sync -- --retry       # include previously failed reels
 ```
 
-### Cookies (recommended for downloads)
+### Cookies (the key to reliable downloads)
 
-Platforms gate media behind login. Export a Netscape `cookies.txt` from a
-logged-in browser session and set per-platform paths in `.env`:
+Discovery (the list of your likes) comes from the export and needs no login. But
+the **download** step does: platforms gate reel/video media behind a session, so
+`yt-dlp` needs your browser cookies to fetch it. Without cookies most downloads
+fail or get rate-limited fast — this is the single most important setup step.
+
+**1. Export a `cookies.txt` (Netscape format).** While logged into the platform in
+your browser, use a cookie-export extension such as
+**"Get cookies.txt LOCALLY"** (open source, runs locally). Export **as
+`cookies.txt` (Netscape format, _not_ JSON)** while the platform's site is open.
+
+A valid file starts with `# Netscape HTTP Cookie File` and, for Instagram,
+contains `sessionid`, `ds_user_id`, and `csrftoken`.
+
+**2. Save it and point `.env` at it** (per platform you'll download from):
 
 ```bash
 YTDLP_COOKIES_INSTAGRAM="./data/cookies-instagram.txt"
@@ -176,7 +188,21 @@ YTDLP_COOKIES_TIKTOK="./data/cookies-tiktok.txt"
 YTDLP_COOKIES_FACEBOOK="./data/cookies-facebook.txt"
 ```
 
-TikTok often needs browser impersonation — see comments in `.env.example`.
+**3. Verify it works** before a big sync:
+
+```bash
+yt-dlp --cookies data/cookies-instagram.txt -o "data/_test.%(ext)s" \
+  "https://www.instagram.com/reel/SHORTCODE/"   # any reel you can view
+# success = an .mp4 appears, then: rm data/_test.*
+```
+
+> **`cookies.txt` is a live session credential — treat it like a password.** It's
+> gitignored (everything under `data/` is). Never commit or share it. Logging out
+> or changing your password invalidates it. To minimize account risk, you can use
+> a throwaway/secondary session and keep `SYNC_RATE_LIMIT_MS` polite (≥ 4000).
+
+TikTok also often needs browser impersonation (a `curl_cffi`-enabled yt-dlp
+build) — see the commented setup in `.env.example`.
 
 ---
 
