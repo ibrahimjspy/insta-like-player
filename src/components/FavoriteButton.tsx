@@ -62,7 +62,11 @@ export function FavoriteButtonUI({
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
       disabled={pending}
       aria-pressed={fav}
       aria-label={fav ? "Remove from favorites" : "Add to favorites"}

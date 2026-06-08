@@ -56,16 +56,14 @@ export function FeedPageClient({ order, initialItems, initialCursor, collections
         }`}
         aria-hidden={!showOrderBar}
       >
-        <div className="flex items-center gap-2">
-          {userPaused && initialItems.length > 0 && (
-            <>
-              <VideoOnlyToggle enabled={videoOnly} onChange={onVideoOnlyChange} />
-              <AutoScrollToggle enabled={autoScroll} onChange={setAutoScroll} />
-            </>
-          )}
-          <OrderSelect value={order} />
-        </div>
+        <OrderSelect value={order} />
       </div>
+      {showOrderBar && userPaused && initialItems.length > 0 && (
+        <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 z-50 flex flex-col items-end gap-2">
+          <VideoOnlyToggle enabled={videoOnly} onChange={onVideoOnlyChange} />
+          <AutoScrollToggle enabled={autoScroll} onChange={setAutoScroll} />
+        </div>
+      )}
       <ReelFeed
         key={order}
         initialItems={initialItems}

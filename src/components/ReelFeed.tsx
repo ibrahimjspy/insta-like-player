@@ -277,6 +277,7 @@ export function ReelFeed({
       {items.map((reel, index) => {
         const isNearActive =
           activeIndex >= 0 && Math.abs(index - activeIndex) <= 1;
+        const showChrome = !videoOnly || (userPaused && activeReelId === reel.feedKey);
         return (
           <ReelSlide
             key={reel.feedKey}
@@ -290,7 +291,7 @@ export function ReelFeed({
             onSkip={onSkip}
             onUserPaused={onUserPaused}
             autoScroll={autoScroll}
-            videoOnly={videoOnly}
+            showChrome={showChrome}
             collections={collections}
             onAutoScrollAdvance={advanceToNextSlide}
           />
@@ -312,7 +313,7 @@ function ReelSlide({
   onSkip,
   onUserPaused,
   autoScroll,
-  videoOnly = false,
+  showChrome = true,
   collections,
   onAutoScrollAdvance,
 }: {
@@ -326,7 +327,7 @@ function ReelSlide({
   onSkip: (feedKey: string, reelId: string) => void;
   onUserPaused?: (paused: boolean) => void;
   autoScroll?: boolean;
-  videoOnly?: boolean;
+  showChrome?: boolean;
   collections?: CollectionOption[];
   onAutoScrollAdvance?: () => void;
 }) {
@@ -416,6 +417,10 @@ function ReelSlide({
   };
 
   const onVideoTap = (e: React.PointerEvent<HTMLVideoElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
     const now = Date.now();
     const sinceLast = now - lastTapAt.current;
     lastTapAt.current = now;
@@ -496,7 +501,7 @@ function ReelSlide({
       )}
 
       <div className="absolute right-3 bottom-4 z-20 flex flex-col items-center gap-4 md:bottom-12">
-        {!videoOnly && (
+        {showChrome && (
           <>
             <FavoriteButtonUI fav={fav} onToggle={toggleFav} pending={favoritePending} />
             {collections && collections.length > 0 && (
@@ -510,6 +515,8 @@ function ReelSlide({
               target="_blank"
               rel="noreferrer"
               aria-label={openOnPlatformLabel(reel.platform)}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
               className="grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white"
             >
               <ExternalLink size={24} />
@@ -534,7 +541,7 @@ function ReelSlide({
         )}
       </div>
 
-      {!videoOnly && (
+      {showChrome && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-4 pb-4">
           {reel.creator && (
             <p className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -607,7 +614,11 @@ function RailButton({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       aria-label={label}
       title={label}
       className={`grid place-items-center text-white/90 transition-transform active:scale-90 hover:text-white ${className}`}
