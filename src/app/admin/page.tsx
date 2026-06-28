@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DownloadUrlPanel } from "@/components/admin/DownloadUrlPanel";
 import { ImportPanel } from "@/components/admin/ImportPanel";
 import { SyncPanel } from "@/components/admin/SyncPanel";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -49,8 +50,9 @@ export default async function AdminDashboard() {
         <h2 id="workflow-heading" className="label-caps">
           Workflow
         </h2>
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-3">
           <ImportPanel />
+          <DownloadUrlPanel />
           <SyncPanel pendingCount={stats.pending} />
         </div>
       </section>

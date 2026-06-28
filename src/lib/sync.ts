@@ -2,11 +2,16 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { Platform } from "@prisma/client";
+import type { Platform, ReelStatus } from "@prisma/client";
 
 import { config, cookiesForPlatform, impersonateForPlatform } from "@/lib/config";
 import { prisma } from "@/lib/db";
-import { mediaStorageKey, parseHashtags, sureShotVideoWhere } from "@/lib/platforms";
+import {
+  mediaStorageKey,
+  parseHashtags,
+  parseVideoUrl,
+  sureShotVideoWhere,
+} from "@/lib/platforms";
 
 /// Recorded when videos-only sync skips non-video likes.
 export const REELS_ONLY_SKIP_REASON =
@@ -42,6 +47,24 @@ export interface SyncSummary {
   unavailable: number;
   /// Non-video likes skipped before yt-dlp (videos-only mode).
   skippedPosts: number;
+}
+
+type DownloadableReel = {
+  id: string;
+  platform: Platform;
+  shortcode: string;
+  reelUrl: string;
+  creatorId: string | null;
+};
+
+export interface DownloadUrlResult {
+  reelId: string;
+  platform: Platform;
+  shortcode: string;
+  reelUrl: string;
+  status: Extract<ReelStatus, "DOWNLOADED" | "FAILED" | "UNAVAILABLE">;
+  alreadyDownloaded: boolean;
+  message?: string;
 }
 
 interface YtDlpInfo {
@@ -181,13 +204,7 @@ export function isUnavailable(message: string): boolean {
 }
 
 /// Downloads a single reel and persists its media + metadata.
-async function downloadReel(reel: {
-  id: string;
-  platform: Platform;
-  shortcode: string;
-  reelUrl: string;
-  creatorId: string | null;
-}): Promise<"DOWNLOADED"> {
+async function downloadReel(reel: DownloadableReel): Promise<"DOWNLOADED"> {
   const storageKey = mediaStorageKey(reel.platform, reel.shortcode);
   await runYtDlp(reel.reelUrl, storageKey, reel.platform);
 
@@ -239,6 +256,110 @@ async function downloadReel(reel: {
   return "DOWNLOADED";
 }
 
+async function settleReelDownload(
+  reel: DownloadableReel,
+): Promise<{ status: DownloadUrlResult["status"]; message?: string }> {
+  try {
+    await downloadReel(reel);
+    return { status: "DOWNLOADED" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const status = isUnavailable(message) ? "UNAVAILABLE" : "FAILED";
+
+    await prisma.reel.update({
+      where: { id: reel.id },
+      data: { status, failReason: message.slice(0, 1000) },
+    });
+
+    return { status, message };
+  }
+}
+
+/// Creates or refreshes one manually supplied video URL, then downloads it
+/// immediately with the same yt-dlp/cookie path used by batch sync.
+export async function downloadReelFromUrl(rawUrl: string): Promise<DownloadUrlResult> {
+  const like = parseVideoUrl(rawUrl, new Date());
+  if (!like) {
+    throw new Error(
+      "Enter a supported video URL, for example an Instagram /reel/ link.",
+    );
+  }
+
+  await fs.mkdir(config.mediaDir, { recursive: true });
+
+  const existing = await prisma.reel.findUnique({
+    where: {
+      platform_shortcode: { platform: like.platform, shortcode: like.shortcode },
+    },
+    select: {
+      id: true,
+      platform: true,
+      shortcode: true,
+      reelUrl: true,
+      creatorId: true,
+      status: true,
+      videoPath: true,
+    },
+  });
+
+  const alreadyDownloaded = existing?.status === "DOWNLOADED" && Boolean(existing.videoPath);
+  const reel = existing
+    ? await prisma.reel.update({
+        where: { id: existing.id },
+        data: {
+          reelUrl: like.reelUrl,
+          ...(alreadyDownloaded ? {} : { status: "PENDING", failReason: null }),
+        },
+        select: {
+          id: true,
+          platform: true,
+          shortcode: true,
+          reelUrl: true,
+          creatorId: true,
+        },
+      })
+    : await prisma.reel.create({
+        data: {
+          platform: like.platform,
+          shortcode: like.shortcode,
+          reelUrl: like.reelUrl,
+          caption: like.caption,
+          likedAt: like.likedAt,
+          status: "PENDING",
+        },
+        select: {
+          id: true,
+          platform: true,
+          shortcode: true,
+          reelUrl: true,
+          creatorId: true,
+        },
+      });
+
+  if (alreadyDownloaded) {
+    return {
+      reelId: reel.id,
+      platform: reel.platform,
+      shortcode: reel.shortcode,
+      reelUrl: reel.reelUrl,
+      status: "DOWNLOADED",
+      alreadyDownloaded: true,
+      message: "Already downloaded.",
+    };
+  }
+
+  const result = await settleReelDownload(reel);
+  return {
+    reelId: reel.id,
+    platform: reel.platform,
+    shortcode: reel.shortcode,
+    reelUrl: reel.reelUrl,
+    status: result.status,
+    alreadyDownloaded: false,
+    message: result.message,
+  };
+}
+
 /// Processes pending reels sequentially with a polite rate limit. Returns a
 /// summary; never throws for per-reel failures (those are recorded on the row).
 export async function syncPending(options: SyncOptions = {}): Promise<SyncSummary> {
@@ -287,8 +408,8 @@ export async function syncPending(options: SyncOptions = {}): Promise<SyncSummar
 
   for (let i = 0; i < reels.length; i++) {
     const reel = reels[i];
-    try {
-      await downloadReel(reel);
+    const result = await settleReelDownload(reel);
+    if (result.status === "DOWNLOADED") {
       summary.downloaded += 1;
       options.onProgress?.({
         platform: reel.platform,
@@ -297,24 +418,17 @@ export async function syncPending(options: SyncOptions = {}): Promise<SyncSummar
         index: i + 1,
         total: reels.length,
       });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const status = isUnavailable(message) ? "UNAVAILABLE" : "FAILED";
-      if (status === "UNAVAILABLE") summary.unavailable += 1;
+    } else {
+      if (result.status === "UNAVAILABLE") summary.unavailable += 1;
       else summary.failed += 1;
-
-      await prisma.reel.update({
-        where: { id: reel.id },
-        data: { status, failReason: message.slice(0, 1000) },
-      });
 
       options.onProgress?.({
         platform: reel.platform,
         shortcode: reel.shortcode,
-        status,
+        status: result.status,
         index: i + 1,
         total: reels.length,
-        message,
+        message: result.message,
       });
     }
 

@@ -1,8 +1,18 @@
 import type { Platform } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
-import { parseFacebookLikes, isFacebookVideoUrl } from "@/lib/platforms/facebook";
-import { parseTikTokLikes, isTikTokVideoUrl } from "@/lib/platforms/tiktok";
+import {
+  extractFacebookVideoId,
+  isFacebookVideoUrl,
+  normalizeFacebookUrl,
+  parseFacebookLikes,
+} from "@/lib/platforms/facebook";
+import {
+  extractTikTokVideoId,
+  isTikTokVideoUrl,
+  normalizeTikTokUrl,
+  parseTikTokLikes,
+} from "@/lib/platforms/tiktok";
 import type { ParsedLike } from "@/lib/platforms/types";
 import {
   PLATFORM_LABEL,
@@ -41,6 +51,51 @@ export function parseExport(platform: Platform, raw: unknown): ParsedLike[] {
     case "FACEBOOK":
       return parseFacebookLikes(raw);
   }
+}
+
+export function parseVideoUrl(rawUrl: string, likedAt: Date | null = null): ParsedLike | null {
+  const url = rawUrl.trim();
+  if (!url) return null;
+
+  const instagramShortcode = extractShortcode(url);
+  if (instagramShortcode) {
+    const reelUrl = normalizeInstagramUrl(url);
+    if (!isSureShotVideoUrl(reelUrl)) return null;
+    return {
+      platform: "INSTAGRAM",
+      shortcode: instagramShortcode,
+      reelUrl,
+      creatorUsername: null,
+      likedAt,
+      caption: null,
+    };
+  }
+
+  const tikTokId = extractTikTokVideoId(url);
+  if (tikTokId) {
+    return {
+      platform: "TIKTOK",
+      shortcode: tikTokId,
+      reelUrl: normalizeTikTokUrl(url),
+      creatorUsername: null,
+      likedAt,
+      caption: null,
+    };
+  }
+
+  const facebookId = extractFacebookVideoId(url);
+  if (facebookId) {
+    return {
+      platform: "FACEBOOK",
+      shortcode: facebookId,
+      reelUrl: normalizeFacebookUrl(url),
+      creatorUsername: null,
+      likedAt,
+      caption: null,
+    };
+  }
+
+  return null;
 }
 
 /// Instagram parser (moved from ingest.ts so ingest stays platform-agnostic).
