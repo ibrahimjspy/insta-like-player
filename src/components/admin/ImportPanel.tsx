@@ -95,7 +95,7 @@ export function ImportPanel() {
           type="file"
           accept="application/json,.json"
           required
-          className="w-full min-w-0 text-sm text-muted file:mr-3 file:rounded-lg file:border file:border-border file:bg-surface-elevated file:px-3 file:py-2 file:text-sm file:font-medium file:text-foreground-secondary hover:file:bg-surface-hover"
+          className="h-11 w-full min-w-0 rounded-lg border border-border bg-surface-elevated px-2 py-1.5 text-sm text-muted outline-none transition-colors file:mr-3 file:h-8 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:text-sm file:font-medium file:text-foreground-secondary hover:file:bg-surface-hover focus:border-border-strong focus:ring-2 focus:ring-ring/30"
         />
         <Button type="submit" disabled={busy} size="md" className="w-full sm:w-auto">
           {busy ? "Importing…" : "Import file"}

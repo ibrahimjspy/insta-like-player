@@ -7,7 +7,7 @@ interface Props extends InputHTMLAttributes<HTMLInputElement> {
 export function Input({ className = "", mono, ...props }: Props) {
   return (
     <input
-      className={`h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-ring/30 disabled:opacity-50 ${mono ? "font-mono text-xs" : ""} ${className}`}
+      className={`h-11 w-full rounded-lg border border-border bg-surface-elevated px-3.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-ring/30 disabled:opacity-50 ${mono ? "font-mono" : ""} ${className}`}
       {...props}
     />
   );
