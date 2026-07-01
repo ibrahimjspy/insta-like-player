@@ -27,7 +27,7 @@ export default async function AdminDashboard() {
     <div className="space-y-10">
       <PageHeader
         title="Dashboard"
-        description="Import likes from Instagram, TikTok, or Facebook, then sync media into your private library on this machine."
+        description="Paste a single video URL, or import likes from Instagram, TikTok, or Facebook, then sync media into your private library on this machine."
       />
 
       <section aria-labelledby="stats-heading">
@@ -51,8 +51,8 @@ export default async function AdminDashboard() {
           Workflow
         </h2>
         <div className="grid gap-4 lg:grid-cols-3">
-          <ImportPanel />
           <DownloadUrlPanel />
+          <ImportPanel />
           <SyncPanel pendingCount={stats.pending} />
         </div>
       </section>

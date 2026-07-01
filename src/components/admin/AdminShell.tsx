@@ -21,7 +21,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="page-texture min-h-screen">
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-5 md:px-8">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:gap-6 sm:px-5 md:px-8">
           <Logo variant="admin" href="/admin" />
           <nav className="hidden items-center gap-1 sm:flex" aria-label="Admin">
             {NAV.map(({ href, label, Icon, exact }) => {
@@ -51,9 +51,33 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <span className="hidden sm:inline">Reader</span>
           </Link>
         </div>
+        <nav
+          className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3 sm:hidden"
+          aria-label="Admin"
+        >
+          {NAV.map(({ href, label, Icon, exact }) => {
+            const active = isActive(href, exact);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-surface-elevated text-foreground"
+                    : "text-muted hover:bg-surface-hover hover:text-foreground-secondary"
+                }`}
+              >
+                <Icon size={16} strokeWidth={1.75} className="opacity-80" />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-10">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5 sm:py-8 md:px-8 md:py-10">
+        {children}
+      </main>
     </div>
   );
 }

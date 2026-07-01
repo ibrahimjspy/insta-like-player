@@ -89,7 +89,75 @@ export default async function AdminReelsPage({
         </Button>
       </form>
 
-      <div className="card overflow-hidden">
+      <div className="space-y-3 md:hidden">
+        {items.map((reel) => (
+          <article key={reel.id} className="card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <a
+                  href={reel.reelUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="break-all font-mono text-xs text-foreground-secondary underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  {reel.shortcode}
+                </a>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <PlatformBadge platform={reel.platform} verbose />
+                  <Badge
+                    tone={
+                      reel.platform === "INSTAGRAM" && reel.reelUrl.includes("/p/")
+                        ? "warning"
+                        : "info"
+                    }
+                  >
+                    {postTypeLabel(reel.platform, reel.reelUrl)}
+                  </Badge>
+                </div>
+              </div>
+              <Badge tone={STATUS_TONE[reel.status]}>{reel.status}</Badge>
+            </div>
+
+            {reel.creator && (
+              <p className="mt-3 inline-flex items-center gap-2 text-sm text-muted">
+                <PlatformBadge platform={reel.creator.platform} />@{reel.creator.username}
+              </p>
+            )}
+            {reel.caption && (
+              <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-muted">
+                {reel.caption}
+              </p>
+            )}
+            {reel.failReason && reel.status === "FAILED" && (
+              <p className="mt-3 line-clamp-3 rounded-lg border border-danger/20 bg-danger-muted px-3 py-2 text-xs text-danger">
+                {reel.failReason}
+              </p>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              {reel.status !== "DOWNLOADED" && (
+                <form action={retryReel.bind(null, reel.id)} className="flex-1">
+                  <Button type="submit" variant="ghost" size="sm" className="w-full">
+                    Retry
+                  </Button>
+                </form>
+              )}
+              <form action={deleteReel.bind(null, reel.id)} className="flex-1">
+                <Button type="submit" variant="danger" size="sm" className="w-full">
+                  Delete
+                </Button>
+              </form>
+            </div>
+          </article>
+        ))}
+        {items.length === 0 && (
+          <div className="card px-4 py-16 text-center text-sm text-muted">
+            No reels match this filter.
+          </div>
+        )}
+      </div>
+
+      <div className="card hidden overflow-hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

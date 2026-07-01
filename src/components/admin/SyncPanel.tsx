@@ -58,9 +58,9 @@ export function SyncPanel({ pendingCount }: { pendingCount: number }) {
   const pct = progress && progress.total > 0 ? (progress.index / progress.total) * 100 : 0;
 
   return (
-    <section className="card-elevated p-6">
-      <div className="flex items-start gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted">
+    <section className="card-elevated p-4 sm:p-6">
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted sm:h-10 sm:w-10">
           <Download size={18} strokeWidth={1.75} />
         </div>
         <div className="min-w-0 flex-1">
@@ -79,8 +79,8 @@ export function SyncPanel({ pendingCount }: { pendingCount: number }) {
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-4">
-        <Button type="button" onClick={start} disabled={state?.running}>
+      <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+        <Button type="button" onClick={start} disabled={state?.running} className="w-full sm:w-auto">
           {state?.running ? "Syncing…" : `Sync ${pendingCount} pending`}
         </Button>
         <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted">

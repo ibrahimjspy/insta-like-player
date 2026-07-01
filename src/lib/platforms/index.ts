@@ -60,7 +60,6 @@ export function parseVideoUrl(rawUrl: string, likedAt: Date | null = null): Pars
   const instagramShortcode = extractShortcode(url);
   if (instagramShortcode) {
     const reelUrl = normalizeInstagramUrl(url);
-    if (!isSureShotVideoUrl(reelUrl)) return null;
     return {
       platform: "INSTAGRAM",
       shortcode: instagramShortcode,

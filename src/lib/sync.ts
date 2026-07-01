@@ -281,7 +281,7 @@ export async function downloadReelFromUrl(rawUrl: string): Promise<DownloadUrlRe
   const like = parseVideoUrl(rawUrl, new Date());
   if (!like) {
     throw new Error(
-      "Enter a supported video URL, for example an Instagram /reel/ link.",
+      "Enter a supported video URL, for example an Instagram /reel/ or /p/ link.",
     );
   }
 

@@ -13,8 +13,12 @@ describe("parseVideoUrl", () => {
     });
   });
 
-  it("rejects generic Instagram posts", () => {
-    expect(parseVideoUrl("https://www.instagram.com/p/ABC123/")).toBeNull();
+  it("parses generic Instagram post URLs for manual download attempts", () => {
+    expect(parseVideoUrl("https://www.instagram.com/p/ABC123/?img_index=1")).toMatchObject({
+      platform: "INSTAGRAM",
+      shortcode: "ABC123",
+      reelUrl: "https://www.instagram.com/p/ABC123/",
+    });
   });
 
   it("parses TikTok video URLs", () => {

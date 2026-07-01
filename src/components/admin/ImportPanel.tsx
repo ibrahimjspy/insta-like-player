@@ -51,9 +51,9 @@ export function ImportPanel() {
   };
 
   return (
-    <section className="card-elevated p-6">
-      <div className="flex items-start gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted">
+    <section className="card-elevated p-4 sm:p-6">
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted sm:h-10 sm:w-10">
           <Upload size={18} strokeWidth={1.75} />
         </div>
         <div className="min-w-0 flex-1">
@@ -95,9 +95,9 @@ export function ImportPanel() {
           type="file"
           accept="application/json,.json"
           required
-          className="text-sm text-muted file:mr-3 file:rounded-lg file:border file:border-border file:bg-surface-elevated file:px-3 file:py-2 file:text-sm file:font-medium file:text-foreground-secondary hover:file:bg-surface-hover"
+          className="w-full min-w-0 text-sm text-muted file:mr-3 file:rounded-lg file:border file:border-border file:bg-surface-elevated file:px-3 file:py-2 file:text-sm file:font-medium file:text-foreground-secondary hover:file:bg-surface-hover"
         />
-        <Button type="submit" disabled={busy} size="md">
+        <Button type="submit" disabled={busy} size="md" className="w-full sm:w-auto">
           {busy ? "Importing…" : "Import file"}
         </Button>
       </form>
