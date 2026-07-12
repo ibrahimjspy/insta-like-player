@@ -49,6 +49,10 @@ facebook_collections.json
 # prisma generated client
 /generated
 
+# local-only agent notes (personal, never commit)
+*.local.md
+/.cursor/rules/gh-account.mdc
+
 # vercel
 .vercel
 
