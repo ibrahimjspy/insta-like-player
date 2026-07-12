@@ -25,23 +25,7 @@ export function useFavorite(reelId: string, initial: boolean) {
     });
   }, [reelId]);
 
-  /// Double-tap like: favorite if needed; no-op when already favorited.
-  const like = useCallback(() => {
-    setFav((current) => {
-      if (current) return current;
-      startTransition(async () => {
-        try {
-          const result = await toggleFavorite(reelId);
-          setFav(result);
-        } catch {
-          setFav((prev) => (prev === true ? false : prev));
-        }
-      });
-      return true;
-    });
-  }, [reelId]);
-
-  return { fav, toggle, like, pending };
+  return { fav, toggle, pending };
 }
 
 type ButtonProps = {
@@ -59,22 +43,33 @@ export function FavoriteButtonUI({
   size = 26,
   className = "",
 }: ButtonProps) {
+  const [blinkKey, setBlinkKey] = useState<number | null>(null);
+
   return (
     <button
       type="button"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
+        const adding = !fav;
         onToggle();
+        if (adding) setBlinkKey(Date.now());
       }}
       disabled={pending}
       aria-pressed={fav}
       aria-label={fav ? "Remove from favorites" : "Add to favorites"}
       className={`grid place-items-center transition-transform active:scale-90 ${
-        fav ? "text-like" : "text-white/90 hover:text-white"
+        fav || blinkKey ? "text-like" : "text-white/90 hover:text-white"
       } ${className}`}
     >
-      <Heart size={size} fill={fav ? "currentColor" : "none"} strokeWidth={2} />
+      <Heart
+        key={blinkKey ?? "heart"}
+        size={size}
+        fill={fav || blinkKey ? "currentColor" : "none"}
+        strokeWidth={2}
+        className={blinkKey ? "like-rail-blink" : undefined}
+        onAnimationEnd={() => setBlinkKey(null)}
+      />
     </button>
   );
 }

@@ -128,7 +128,11 @@ export const FEED_TASTE_CONFIG = {
     loopDetectPastRatio: 0.5,
     loopDetectRewindRatio: 0.15,
     maxWatchDeltaPerTick: 2,
-    likeBurstDurationMs: 800,
+    /** Netflix-style double-tap seek amount (seconds). */
+    seekSeconds: 5,
+    /** Left/right half of the slide for back/forward seek (0.5 = true halves). */
+    seekSideRatio: 0.5,
+    seekFeedbackMs: 700,
   },
 } as const;
 

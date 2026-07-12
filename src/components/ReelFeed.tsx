@@ -1,11 +1,18 @@
 "use client";
 
-import { Ban, ExternalLink, Heart, Trash2, Volume2, VolumeX } from "lucide-react";
+import { Ban, ExternalLink, Trash2, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { deleteReel, skipReel } from "@/app/actions";
 import { CollectionAddButton, type CollectionOption } from "@/components/CollectionAddButton";
 import { FavoriteButtonUI, useFavorite } from "@/components/FavoriteButton";
+import { PlatformBadge } from "@/components/PlatformBadge";
+import { SeekFeedback, type SeekDirection } from "@/components/reel-feed/SeekFeedback";
+import { VideoScrubber } from "@/components/reel-feed/VideoScrubber";
+import {
+  classifyTapZone,
+  clampSeekTime,
+} from "@/components/reel-feed/player-gestures";
 import { useFeedActiveSlide, useOnReelActivated } from "@/components/reel-feed/useFeedActiveSlide";
 import { useReelWatchMetrics } from "@/components/reel-feed/useReelWatchMetrics";
 import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
@@ -17,7 +24,6 @@ import {
   withFeedKeys,
   type FeedItem,
 } from "@/lib/feed/feed-pagination";
-import { PlatformBadge } from "@/components/PlatformBadge";
 import { openOnPlatformLabel } from "@/lib/platforms";
 import { type ReelView, videoSrc } from "@/lib/types";
 
@@ -345,13 +351,14 @@ function ReelSlide({
     onAutoScrollAdvance,
   });
 
-  const [likeBurst, setLikeBurst] = useState<{ x: number; y: number; key: number } | null>(
-    null,
-  );
+  const [seekBurst, setSeekBurst] = useState<{
+    direction: SeekDirection;
+    key: number;
+  } | null>(null);
   const [frameReady, setFrameReady] = useState(false);
   const lastTapAt = useRef(0);
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { fav, toggle: toggleFav, like, pending: favoritePending } = useFavorite(
+  const { fav, toggle: toggleFav, pending: favoritePending } = useFavorite(
     reel.id,
     reel.isFavorite,
   );
@@ -420,6 +427,19 @@ function ReelSlide({
     }
   };
 
+  const seekBy = useCallback(
+    (direction: SeekDirection) => {
+      const el = videoRef.current;
+      if (!el || !isActive) return;
+      const delta = direction === "back" ? -P.seekSeconds : P.seekSeconds;
+      const next = clampSeekTime(el.currentTime, delta, el.duration);
+      if (next === null) return;
+      el.currentTime = next;
+      setSeekBurst({ direction, key: Date.now() });
+    },
+    [isActive, videoRef],
+  );
+
   const onVideoTap = (e: React.PointerEvent<HTMLVideoElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     e.preventDefault();
@@ -434,14 +454,17 @@ function ReelSlide({
         clearTimeout(singleTapTimer.current);
         singleTapTimer.current = null;
       }
+
       const root = e.currentTarget.closest("section");
       const rect = root?.getBoundingClientRect();
-      setLikeBurst({
-        x: e.clientX - (rect?.left ?? 0),
-        y: e.clientY - (rect?.top ?? 0),
-        key: Date.now(),
-      });
-      like();
+      const zone = classifyTapZone(
+        e.clientX,
+        rect?.left ?? 0,
+        rect?.width ?? 0,
+        P.seekSideRatio,
+      );
+      // Netflix halves: left = back, right = forward (midpoint counts as forward).
+      seekBy(zone === "back" ? "back" : "forward");
       return;
     }
 
@@ -459,10 +482,10 @@ function ReelSlide({
   }, []);
 
   useEffect(() => {
-    if (!likeBurst) return;
-    const t = setTimeout(() => setLikeBurst(null), P.likeBurstDurationMs);
+    if (!seekBurst) return;
+    const t = setTimeout(() => setSeekBurst(null), P.seekFeedbackMs);
     return () => clearTimeout(t);
-  }, [likeBurst]);
+  }, [seekBurst]);
 
   return (
     <section
@@ -489,25 +512,20 @@ function ReelSlide({
         />
       </div>
 
-      {likeBurst && (
-        <div
-          key={likeBurst.key}
-          className="pointer-events-none absolute z-30"
-          style={{ left: likeBurst.x, top: likeBurst.y, transform: "translate(-50%, -50%)" }}
-        >
-          <Heart
-            size={88}
-            fill="currentColor"
-            strokeWidth={0}
-            className="like-burst text-like drop-shadow-lg"
-          />
-        </div>
+      {seekBurst && (
+        <SeekFeedback
+          direction={seekBurst.direction}
+          seconds={P.seekSeconds}
+          burstKey={seekBurst.key}
+        />
       )}
+
+      {isActive && liftChrome && <VideoScrubber videoRef={videoRef} lifted />}
 
       <div
         className={`absolute right-3 z-20 flex flex-col items-center gap-3 transition-[bottom,opacity] duration-200 ${
           liftChrome
-            ? "bottom-[calc(5.5rem+env(safe-area-inset-bottom))]"
+            ? "bottom-[calc(6.25rem+env(safe-area-inset-bottom))]"
             : "bottom-7 md:bottom-12"
         }`}
       >
@@ -563,9 +581,9 @@ function ReelSlide({
       {showChrome && (
         <div
           className={`pointer-events-none absolute inset-x-0 z-10 bg-gradient-to-t from-black/85 via-black/35 to-transparent px-4 pt-20 transition-[bottom,padding] duration-200 ${
-            liftChrome
-              ? "bottom-[calc(4.15rem+env(safe-area-inset-bottom))] pb-3"
-              : "bottom-0 pb-4"
+          liftChrome
+            ? "bottom-[calc(5.75rem+env(safe-area-inset-bottom))] pb-3"
+            : "bottom-0 pb-4"
           }`}
         >
           {reel.creator && (
