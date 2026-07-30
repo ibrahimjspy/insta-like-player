@@ -375,7 +375,7 @@ export async function canReachOfflineHost(): Promise<boolean> {
     const res = await fetch("/api/offline/candidates", {
       method: "HEAD",
       cache: "no-store",
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(1_500),
     });
     return res.ok;
   } catch {

@@ -1,7 +1,7 @@
-import { OfflinePageClient } from "@/components/OfflinePageClient";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-static";
 
 export default function OfflinePage() {
-  return <OfflinePageClient />;
+  redirect("/");
 }

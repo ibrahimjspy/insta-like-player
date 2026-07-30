@@ -1,6 +1,12 @@
 /* Like Player service worker — caches app shell only (not video). */
-const SHELL_CACHE = "like-player-shell-v2";
-const SHELL_URLS = ["/offline", "/manifest.webmanifest", "/icon.svg", "/apple-icon.svg"];
+const SHELL_CACHE = "like-player-shell-v3";
+const SHELL_URLS = ["/", "/manifest.webmanifest", "/icon.svg", "/apple-icon.svg"];
+
+function fetchWithTimeout(request, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(request, { signal: controller.signal }).finally(() => clearTimeout(timeout));
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -17,10 +23,10 @@ self.addEventListener("install", (event) => {
         );
 
         // Next does not expose a build manifest to this hand-written worker.
-        // Discover the offline page's hashed JS/CSS/font assets from its HTML.
-        const offline = await cache.match("/offline");
-        if (!offline) return;
-        const html = await offline.text();
+        // Discover the feed shell's hashed JS/CSS/font assets from its HTML.
+        const shell = await cache.match("/");
+        if (!shell) return;
+        const html = await shell.text();
         const assetUrls = [
           ...html.matchAll(/(?:src|href)=["']([^"']*\/_next\/static\/[^"']+)["']/g),
         ].map((match) => new URL(match[1], self.location.origin).pathname);
@@ -76,10 +82,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigations: network-first, fall back to cached /offline shell.
+  // Navigations: network-first, fall back to the cached seamless feed shell.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
+      fetchWithTimeout(request, 3000)
         .then(async (res) => {
           const cache = await caches.open(SHELL_CACHE);
           if (res.ok) cache.put(request, res.clone());
@@ -89,7 +95,9 @@ self.addEventListener("fetch", (event) => {
           const cache = await caches.open(SHELL_CACHE);
           return (
             (await cache.match(request)) ||
-            (url.pathname === "/offline" ? await cache.match("/offline") : undefined) ||
+            (url.pathname === "/" || url.pathname === "/offline"
+              ? await cache.match("/")
+              : undefined) ||
             new Response("Offline", { status: 503, statusText: "Offline" })
           );
         }),

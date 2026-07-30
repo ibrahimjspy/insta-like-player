@@ -14,6 +14,7 @@ type Params = {
   isActive: boolean;
   attachVideo: boolean;
   autoScroll: boolean;
+  persistEnabled?: boolean;
   onAutoScrollAdvance?: () => void;
 };
 
@@ -26,6 +27,7 @@ export function useReelWatchMetrics({
   isActive,
   attachVideo,
   autoScroll,
+  persistEnabled = true,
   onAutoScrollAdvance,
 }: Params) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -59,6 +61,7 @@ export function useReelWatchMetrics({
 
     const hasPersistedActivity = sec >= S.minWatchSecToRecord || loops > 0;
     const hasSessionActivity = totalWatchSec > 0 || totalLoops > 0;
+    if (!persistEnabled) return;
     if (!hasPersistedActivity && (!classifySession || !hasSessionActivity)) return;
 
     flushWatchTime(reelId, sec, maxPositionSec, {
@@ -69,13 +72,14 @@ export function useReelWatchMetrics({
       classificationPositionSec: maxPositionSec,
       classificationLoopCount: totalLoops,
     }).catch(() => undefined);
-  }, [reelId, durationSec]);
+  }, [reelId, durationSec, persistEnabled]);
 
   const recordSessionStart = useCallback(() => {
     if (watched.current) return;
     watched.current = true;
+    if (!persistEnabled) return;
     recordWatch(reelId).catch(() => undefined);
-  }, [reelId]);
+  }, [reelId, persistEnabled]);
 
   useEffect(() => {
     const el = videoRef.current;

@@ -27,10 +27,13 @@ import type { ReelView } from "@/lib/types";
 type OfflineContextValue = {
   offlineIds: Set<string>;
   pinnedIds: Set<string>;
+  hostReachable: boolean | null;
   autoSyncing: boolean;
   isCached: (reelId: string) => boolean;
   isPinned: (reelId: string) => boolean;
   reloadIds: () => Promise<void>;
+  probeHost: () => Promise<boolean>;
+  markHostUnavailable: () => void;
   takeOffline: (reel: ReelView) => Promise<boolean>;
   unpinOffline: (reelId: string) => Promise<void>;
 };
@@ -40,8 +43,26 @@ const OfflineContext = createContext<OfflineContextValue | null>(null);
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const [offlineIds, setOfflineIds] = useState<Set<string>>(() => new Set());
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => new Set());
+  const [hostReachable, setHostReachable] = useState<boolean | null>(null);
   const [autoSyncing, setAutoSyncing] = useState(false);
   const syncingRef = useRef(false);
+  const probingRef = useRef<Promise<boolean> | null>(null);
+
+  const probeHost = useCallback(async (): Promise<boolean> => {
+    if (probingRef.current) return probingRef.current;
+    const probe = canReachOfflineHost()
+      .then((reachable) => {
+        setHostReachable(reachable);
+        return reachable;
+      })
+      .finally(() => {
+        probingRef.current = null;
+      });
+    probingRef.current = probe;
+    return probe;
+  }, []);
+
+  const markHostUnavailable = useCallback(() => setHostReachable(false), []);
 
   const reloadIds = useCallback(async () => {
     const [ids, pins] = await Promise.all([getOfflineIds(), getOfflinePinnedIds()]);
@@ -90,7 +111,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     try {
       if (!shouldAutoRefreshNow()) return;
       if ((await getOfflineIds()).size === 0) return;
-      if (!(await canReachOfflineHost())) return;
+      if (!(await probeHost())) return;
 
       setAutoSyncing(true);
       await refreshOfflinePocket();
@@ -102,10 +123,11 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       syncingRef.current = false;
       setAutoSyncing(false);
     }
-  }, [reloadIds]);
+  }, [probeHost, reloadIds]);
 
   useEffect(() => {
     const tryRefresh = () => {
+      void probeHost();
       void runAutoRefresh();
     };
     const onVisible = () => {
@@ -118,6 +140,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     // the user's first manual Refresh, avoiding a surprise 2 GB download.
     const bootTimer = window.setTimeout(() => {
       if (navigator.onLine) tryRefresh();
+      else setHostReachable(false);
     }, 1500);
     return () => {
       window.removeEventListener("online", tryRefresh);
@@ -125,7 +148,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisible);
       window.clearTimeout(bootTimer);
     };
-  }, [runAutoRefresh]);
+  }, [probeHost, runAutoRefresh]);
 
   const takeOffline = useCallback(
     async (reel: ReelView) => {
@@ -149,14 +172,27 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     () => ({
       offlineIds,
       pinnedIds,
+      hostReachable,
       autoSyncing,
       isCached: (reelId: string) => offlineIds.has(reelId),
       isPinned: (reelId: string) => pinnedIds.has(reelId),
       reloadIds,
+      probeHost,
+      markHostUnavailable,
       takeOffline,
       unpinOffline,
     }),
-    [offlineIds, pinnedIds, autoSyncing, reloadIds, takeOffline, unpinOffline],
+    [
+      offlineIds,
+      pinnedIds,
+      hostReachable,
+      autoSyncing,
+      reloadIds,
+      probeHost,
+      markHostUnavailable,
+      takeOffline,
+      unpinOffline,
+    ],
   );
 
   return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;

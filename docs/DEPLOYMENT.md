@@ -96,15 +96,17 @@ Stop serving: `tailscale serve reset`.
 
 ### Offline pocket (phone without VPN)
 
-The reader has an **Offline** tab (`/offline`). While the Mac is reachable (home
-Wi‑Fi or Tailscale), tap **Refresh** to download Instagram + TikTok favorites and
-recent videos into the phone’s IndexedDB (up to **2 GB**; Facebook excluded).
-After that, open the installed PWA and scroll those clips with Tailscale off.
+While the Mac is reachable (home Wi‑Fi or Tailscale), open **Admin → Phone
+playback** and tap **Refresh this device**. This downloads Instagram + TikTok
+favorites and recent videos into the phone’s IndexedDB (up to **2 GB**;
+Facebook excluded). After that, the normal Feed automatically uses those clips
+when the Mac is unreachable.
 
 Also:
-- **Auto-refresh** runs when the browser comes back online (5‑minute cooldown)
+- **Auto-refresh** runs when the Mac becomes reachable (5‑minute cooldown)
 - Feed / grid show an **Offline** badge on cached reels
 - **Take offline** (download icon) on any IG/TikTok reel pins it into the pocket
+- Server-backed navigation and actions are disabled while disconnected
 
 Videos are stored as blobs (not via the service worker) so seeking works. The
 service worker only caches the app shell. Use a production build (`npm run serve`

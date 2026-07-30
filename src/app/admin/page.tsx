@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DownloadUrlPanel } from "@/components/admin/DownloadUrlPanel";
 import { ImportPanel } from "@/components/admin/ImportPanel";
+import { OfflinePanel } from "@/components/admin/OfflinePanel";
 import { SyncPanel } from "@/components/admin/SyncPanel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
@@ -55,6 +56,13 @@ export default async function AdminDashboard() {
           <ImportPanel />
           <SyncPanel pendingCount={stats.pending} />
         </div>
+      </section>
+
+      <section aria-labelledby="offline-heading" className="space-y-4">
+        <h2 id="offline-heading" className="label-caps">
+          Phone playback
+        </h2>
+        <OfflinePanel />
       </section>
 
       {stats.failed > 0 && (

@@ -74,13 +74,15 @@ src/lib/
   types.ts                   Client-safe types + media URL builders
   offline/                   Phone offline pocket (IndexedDB blobs, 2 GB, no Facebook)
 
-src/app/(reader)/            Reader UI: / (feed), /search, /collections, /favorites, /offline
+src/app/(reader)/            Reader UI: / (seamless live/offline feed), /search,
+                             /collections, /favorites
 src/app/admin/               Admin UI: dashboard + /admin/reels table
 src/app/actions.ts           Reader server actions (favorites, collections, watch)
 src/app/admin/actions.ts     Admin server actions (retry, delete reel)
 src/app/api/
   media/[type]/[platform]/[shortcode]   Streams local media with HTTP range support
   reels                                   Feed pagination JSON
+  collections                             Reader collection options JSON
   offline/candidates                      IG/TikTok favorites+recent for offline sync
   admin/import                            Upload + ingest platform export
   admin/sync                              Start / poll the background sync

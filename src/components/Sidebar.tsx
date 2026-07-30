@@ -1,9 +1,10 @@
 "use client";
 
-import { Download, Heart, Library, Play, Search, Settings } from "lucide-react";
+import { Heart, Library, Play, Search, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useOffline } from "@/components/OfflineProvider";
 import { useReaderChrome } from "@/components/ReaderChromeContext";
 
 const LINKS = [
@@ -11,12 +12,13 @@ const LINKS = [
   { href: "/search", label: "Search", Icon: Search },
   { href: "/collections", label: "Collections", Icon: Library },
   { href: "/favorites", label: "Favorites", Icon: Heart },
-  { href: "/offline", label: "Offline", Icon: Download },
 ] as const;
 
 export function Sidebar() {
   const pathname = usePathname();
   const { feedPausedChrome } = useReaderChrome();
+  const { hostReachable } = useOffline();
+  const disconnected = hostReachable === false;
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -37,8 +39,11 @@ export function Sidebar() {
       >
         {LINKS.map((link) => {
           const active = isActive(link.href);
+          const disabled = disconnected && link.href !== "/";
           const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2.5 text-[0.6875rem] font-medium transition-colors ${
-            active
+            disabled
+              ? "cursor-not-allowed text-muted/35"
+              : active
               ? "bg-surface-elevated text-foreground"
               : "text-muted hover:bg-surface-hover hover:text-foreground-secondary"
           }`;
@@ -53,12 +58,17 @@ export function Sidebar() {
             </>
           );
 
-          // A hard navigation lets the service worker serve the cached /offline
-          // shell when Next's RSC request cannot reach the Mac.
-          return link.href === "/offline" ? (
-            <a key={link.href} href={link.href} className={className}>
+          return disabled ? (
+            <button
+              key={link.href}
+              type="button"
+              disabled
+              aria-label={`${link.label} unavailable while disconnected`}
+              title="Available when connected to the Mac"
+              className={className}
+            >
               {content}
-            </a>
+            </button>
           ) : (
             <Link
               key={link.href}
@@ -69,13 +79,26 @@ export function Sidebar() {
             </Link>
           );
         })}
-        <Link
-          href="/admin"
-          className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-3 py-2.5 text-[0.6875rem] font-medium text-muted transition-colors hover:bg-surface-hover hover:text-foreground-secondary"
-        >
-          <Settings size={20} strokeWidth={1.75} />
-          <span className="truncate">Admin</span>
-        </Link>
+        {disconnected ? (
+          <button
+            type="button"
+            disabled
+            aria-label="Admin unavailable while disconnected"
+            title="Available when connected to the Mac"
+            className="flex shrink-0 cursor-not-allowed flex-col items-center justify-center gap-1 rounded-xl px-3 py-2.5 text-[0.6875rem] font-medium text-muted/35"
+          >
+            <Settings size={20} strokeWidth={1.75} />
+            <span className="truncate">Admin</span>
+          </button>
+        ) : (
+          <Link
+            href="/admin"
+            className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-3 py-2.5 text-[0.6875rem] font-medium text-muted transition-colors hover:bg-surface-hover hover:text-foreground-secondary"
+          >
+            <Settings size={20} strokeWidth={1.75} />
+            <span className="truncate">Admin</span>
+          </Link>
+        )}
       </nav>
     </aside>
   );

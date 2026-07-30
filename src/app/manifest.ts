@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Like Player",
     description:
       "Personal library of liked Instagram and TikTok videos — works offline for a cached pocket.",
-    start_url: "/offline",
+    start_url: "/",
     display: "standalone",
     background_color: "#0a0a0b",
     theme_color: "#0a0a0b",

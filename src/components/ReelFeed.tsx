@@ -358,7 +358,7 @@ function ReelSlide({
 }) {
   const mediaSrc = resolveVideoSrc?.(reel) ?? videoSrc(reel.platform, reel.shortcode);
   const offline = useOfflineOptional();
-  const isCached = offline?.isCached(reel.id) ?? false;
+  const isCached = !localOnly && (offline?.isCached(reel.id) ?? false);
   const attachVideo = useVideoPreload(scrollRoot, reel.feedKey, isActive || isNearActive);
   const { videoRef, recordSessionStart } = useReelWatchMetrics({
     reelId: reel.id,
@@ -366,6 +366,7 @@ function ReelSlide({
     isActive,
     attachVideo,
     autoScroll: autoScroll ?? false,
+    persistEnabled: !localOnly,
     onAutoScrollAdvance,
   });
 
