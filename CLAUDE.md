@@ -72,18 +72,21 @@ src/lib/
   queries.ts                 All read queries (feed, search, collections, stats)
   media.ts                   Media path resolution + content types (pure-ish)
   types.ts                   Client-safe types + media URL builders
+  offline/                   Phone offline pocket (IndexedDB blobs, 2 GB, no Facebook)
 
-src/app/(reader)/            Reader UI: / (feed), /search, /collections, /favorites
+src/app/(reader)/            Reader UI: / (feed), /search, /collections, /favorites, /offline
 src/app/admin/               Admin UI: dashboard + /admin/reels table
 src/app/actions.ts           Reader server actions (favorites, collections, watch)
 src/app/admin/actions.ts     Admin server actions (retry, delete reel)
 src/app/api/
   media/[type]/[platform]/[shortcode]   Streams local media with HTTP range support
   reels                                   Feed pagination JSON
+  offline/candidates                      IG/TikTok favorites+recent for offline sync
   admin/import                            Upload + ingest platform export
   admin/sync                              Start / poll the background sync
 
 src/components/              React components (Sidebar, ReelFeed, ReelGrid, …)
+public/sw.js                 PWA shell service worker (not video — video is IndexedDB)
 ```
 
 ### Data flow

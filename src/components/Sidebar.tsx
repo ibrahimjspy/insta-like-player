@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Library, Play, Search, Settings } from "lucide-react";
+import { Download, Heart, Library, Play, Search, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/search", label: "Search", Icon: Search },
   { href: "/collections", label: "Collections", Icon: Library },
   { href: "/favorites", label: "Favorites", Icon: Heart },
+  { href: "/offline", label: "Offline", Icon: Download },
 ] as const;
 
 export function Sidebar() {
@@ -20,8 +21,8 @@ export function Sidebar() {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const onFeed = pathname === "/";
-  const showBar = !onFeed || feedPausedChrome;
+  const onFullBleedFeed = pathname === "/";
+  const showBar = !onFullBleedFeed || feedPausedChrome;
 
   return (
     <aside
@@ -36,22 +37,35 @@ export function Sidebar() {
       >
         {LINKS.map((link) => {
           const active = isActive(link.href);
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2.5 text-[0.6875rem] font-medium transition-colors ${
-                active
-                  ? "bg-surface-elevated text-foreground"
-                  : "text-muted hover:bg-surface-hover hover:text-foreground-secondary"
-              }`}
-            >
+          const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2.5 text-[0.6875rem] font-medium transition-colors ${
+            active
+              ? "bg-surface-elevated text-foreground"
+              : "text-muted hover:bg-surface-hover hover:text-foreground-secondary"
+          }`;
+          const content = (
+            <>
               <link.Icon
                 size={20}
                 strokeWidth={active ? 2.25 : 1.75}
                 className="shrink-0"
               />
               <span className="max-w-full truncate">{link.label}</span>
+            </>
+          );
+
+          // A hard navigation lets the service worker serve the cached /offline
+          // shell when Next's RSC request cannot reach the Mac.
+          return link.href === "/offline" ? (
+            <a key={link.href} href={link.href} className={className}>
+              {content}
+            </a>
+          ) : (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={className}
+            >
+              {content}
             </Link>
           );
         })}

@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -18,6 +20,12 @@ export const metadata: Metadata = {
   title: "Like Player",
   description:
     "A personal, searchable, scrollable library of your liked videos from Instagram, TikTok, and Facebook.",
+  applicationName: "Like Player",
+  appleWebApp: {
+    capable: true,
+    title: "Like Player",
+    statusBarStyle: "black-translucent",
+  },
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
     apple: [{ url: "/apple-icon.svg", type: "image/svg+xml" }],
@@ -40,7 +48,10 @@ export default function RootLayout({
       lang="en"
       className={`${jakarta.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col overflow-x-hidden">{children}</body>
+      <body className="flex min-h-full flex-col overflow-x-hidden">
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }

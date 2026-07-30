@@ -1,8 +1,14 @@
+import { promises as fs } from "node:fs";
+
 import { Platform, Prisma, ReelStatus } from "@prisma/client";
 
 import { config } from "@/lib/config";
 import { backfillEngagementFromHistory, smartFeedIdsQuery } from "@/lib/feed";
 import { prisma } from "@/lib/db";
+import { resolveMediaPath } from "@/lib/media";
+import { OFFLINE_CONFIG } from "@/lib/offline/config";
+import type { OfflineCandidate } from "@/lib/offline/types";
+
 
 /// Fields needed to render a reel card / player. Shared across reader views.
 export const reelCardSelect = {
@@ -116,6 +122,71 @@ export async function getFavorites(): Promise<ReelCard[]> {
     orderBy: { likedAt: "desc" },
     select: reelCardSelect,
   });
+}
+
+/// Instagram + TikTok favorites first, then recent downloads — with on-disk sizes
+/// for the offline pocket sync (Facebook excluded).
+export async function getOfflineCandidates(): Promise<OfflineCandidate[]> {
+  const platforms = [...OFFLINE_CONFIG.allowedPlatforms];
+  const limit = OFFLINE_CONFIG.candidateLimit;
+
+  const [favorites, recent] = await Promise.all([
+    prisma.reel.findMany({
+      where: {
+        isFavorite: true,
+        status: ReelStatus.DOWNLOADED,
+        platform: { in: platforms },
+        videoPath: { not: null },
+      },
+      orderBy: { likedAt: "desc" },
+      take: limit,
+      select: reelCardSelect,
+    }),
+    prisma.reel.findMany({
+      where: {
+        status: ReelStatus.DOWNLOADED,
+        platform: { in: platforms },
+        videoPath: { not: null },
+      },
+      orderBy: [{ likedAt: "desc" }, { id: "desc" }],
+      take: limit,
+      select: reelCardSelect,
+    }),
+  ]);
+
+  const seen = new Set<string>();
+  const ordered: ReelCard[] = [];
+  for (const reel of [...favorites, ...recent]) {
+    if (seen.has(reel.id)) continue;
+    seen.add(reel.id);
+    ordered.push(reel);
+    if (ordered.length >= limit) break;
+  }
+
+  const out: OfflineCandidate[] = [];
+  for (const reel of ordered) {
+    if (!reel.videoPath) continue;
+    const absolute = resolveMediaPath(reel.videoPath);
+    if (!absolute) continue;
+    const stat = await fs.stat(absolute).catch(() => null);
+    if (!stat?.isFile()) continue;
+
+    out.push({
+      id: reel.id,
+      platform: reel.platform,
+      shortcode: reel.shortcode,
+      reelUrl: reel.reelUrl,
+      caption: reel.caption,
+      durationSec: reel.durationSec,
+      width: reel.width,
+      height: reel.height,
+      likedAt: reel.likedAt,
+      isFavorite: reel.isFavorite,
+      creator: reel.creator,
+      byteSize: stat.size,
+    });
+  }
+  return out;
 }
 
 /// Distinct creators that have at least one downloaded reel, for filtering.

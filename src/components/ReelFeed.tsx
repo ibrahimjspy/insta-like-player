@@ -6,6 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deleteReel, skipReel } from "@/app/actions";
 import { CollectionAddButton, type CollectionOption } from "@/components/CollectionAddButton";
 import { FavoriteButtonUI, useFavorite } from "@/components/FavoriteButton";
+import { OfflineCachedBadge } from "@/components/OfflineCachedBadge";
+import { useOfflineOptional } from "@/components/OfflineProvider";
+import { OfflineTakeButton } from "@/components/OfflineTakeButton";
 import { PlatformBadge } from "@/components/PlatformBadge";
 import { SeekFeedback, type SeekDirection } from "@/components/reel-feed/SeekFeedback";
 import { VideoScrubber } from "@/components/reel-feed/VideoScrubber";
@@ -48,6 +51,10 @@ interface Props {
   autoScroll?: boolean;
   videoOnly?: boolean;
   collections?: CollectionOption[];
+  /// Override media URL (e.g. IndexedDB blob URLs for the offline pocket).
+  resolveVideoSrc?: (reel: ReelView) => string;
+  /// Hide server-backed destructive actions (offline pocket).
+  localOnly?: boolean;
 }
 
 export function ReelFeed({
@@ -62,6 +69,8 @@ export function ReelFeed({
   autoScroll = false,
   videoOnly = false,
   collections,
+  resolveVideoSrc,
+  localOnly = false,
 }: Props) {
   const [feedInit] = useState(() => initialFeedState(initialItems));
   const [items, setItems] = useState<FeedItem[]>(feedInit.items);
@@ -302,6 +311,8 @@ export function ReelFeed({
             liftChrome={liftChrome}
             collections={collections}
             onAutoScrollAdvance={advanceToNextSlide}
+            resolveVideoSrc={resolveVideoSrc}
+            localOnly={localOnly}
           />
         );
       })}
@@ -325,6 +336,8 @@ function ReelSlide({
   liftChrome = false,
   collections,
   onAutoScrollAdvance,
+  resolveVideoSrc,
+  localOnly = false,
 }: {
   reel: FeedItem;
   isActive: boolean;
@@ -340,7 +353,12 @@ function ReelSlide({
   liftChrome?: boolean;
   collections?: CollectionOption[];
   onAutoScrollAdvance?: () => void;
+  resolveVideoSrc?: (reel: ReelView) => string;
+  localOnly?: boolean;
 }) {
+  const mediaSrc = resolveVideoSrc?.(reel) ?? videoSrc(reel.platform, reel.shortcode);
+  const offline = useOfflineOptional();
+  const isCached = offline?.isCached(reel.id) ?? false;
   const attachVideo = useVideoPreload(scrollRoot, reel.feedKey, isActive || isNearActive);
   const { videoRef, recordSessionStart } = useReelWatchMetrics({
     reelId: reel.id,
@@ -497,7 +515,7 @@ function ReelSlide({
         <video
           key={reel.feedKey}
           ref={videoRef}
-          src={attachVideo ? videoSrc(reel.platform, reel.shortcode) : undefined}
+          src={attachVideo ? mediaSrc : undefined}
           className={`max-h-full max-w-full object-contain object-center ${
             showVideo ? "opacity-100" : "opacity-0"
           }`}
@@ -531,13 +549,21 @@ function ReelSlide({
       >
         {showChrome && (
           <>
-            <FavoriteButtonUI
-              fav={fav}
-              onToggle={toggleFav}
-              pending={favoritePending}
-              className="size-10 rounded-full bg-black/25 shadow-lg shadow-black/25 backdrop-blur-md hover:bg-black/35"
-            />
-            {collections && collections.length > 0 && (
+            {!localOnly && (
+              <FavoriteButtonUI
+                fav={fav}
+                onToggle={toggleFav}
+                pending={favoritePending}
+                className="size-10 rounded-full bg-black/25 shadow-lg shadow-black/25 backdrop-blur-md hover:bg-black/35"
+              />
+            )}
+            {!localOnly && (
+              <OfflineTakeButton
+                reel={reel}
+                className="size-10 rounded-full bg-black/25 shadow-lg shadow-black/25 backdrop-blur-md hover:bg-black/35"
+              />
+            )}
+            {!localOnly && collections && collections.length > 0 && (
               <CollectionAddButton
                 reelId={reel.id}
                 collections={collections}
@@ -547,33 +573,37 @@ function ReelSlide({
             <RailButton label={muted ? "Unmute" : "Mute"} onClick={onToggleMute}>
               {muted ? <VolumeX size={26} /> : <Volume2 size={26} />}
             </RailButton>
-            <a
-              href={reel.reelUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={openOnPlatformLabel(reel.platform)}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              className="grid size-10 place-items-center rounded-full bg-black/25 text-white/90 shadow-lg shadow-black/25 backdrop-blur-md transition-transform active:scale-90 hover:bg-black/35 hover:text-white"
-            >
-              <ExternalLink size={24} />
-            </a>
-            <RailButton
-              label="Don't import (hide and never re-download)"
-              onClick={() => onSkip(reel.feedKey, reel.id)}
-            >
-              <Ban size={24} />
-            </RailButton>
-            <RailButton
-              label="Delete reel"
-              onClick={() => {
-                if (confirm("Delete this reel and its downloaded video?"))
-                  onDelete(reel.feedKey, reel.id);
-              }}
-              className="hover:text-red-500"
-            >
-              <Trash2 size={24} />
-            </RailButton>
+            {!localOnly && (
+              <>
+                <a
+                  href={reel.reelUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={openOnPlatformLabel(reel.platform)}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  className="grid size-10 place-items-center rounded-full bg-black/25 text-white/90 shadow-lg shadow-black/25 backdrop-blur-md transition-transform active:scale-90 hover:bg-black/35 hover:text-white"
+                >
+                  <ExternalLink size={24} />
+                </a>
+                <RailButton
+                  label="Don't import (hide and never re-download)"
+                  onClick={() => onSkip(reel.feedKey, reel.id)}
+                >
+                  <Ban size={24} />
+                </RailButton>
+                <RailButton
+                  label="Delete reel"
+                  onClick={() => {
+                    if (confirm("Delete this reel and its downloaded video?"))
+                      onDelete(reel.feedKey, reel.id);
+                  }}
+                  className="hover:text-red-500"
+                >
+                  <Trash2 size={24} />
+                </RailButton>
+              </>
+            )}
           </>
         )}
       </div>
@@ -589,7 +619,13 @@ function ReelSlide({
           {reel.creator && (
             <p className="flex items-center gap-2 text-sm font-semibold text-white">
               <PlatformBadge platform={reel.creator.platform} />
+              {isCached && <OfflineCachedBadge />}
               @{reel.creator.username}
+            </p>
+          )}
+          {!reel.creator && isCached && (
+            <p className="mb-1">
+              <OfflineCachedBadge />
             </p>
           )}
           {reel.caption && (

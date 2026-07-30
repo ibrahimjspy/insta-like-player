@@ -11,6 +11,9 @@ import {
   skipReel,
 } from "@/app/actions";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { OfflineCachedBadge } from "@/components/OfflineCachedBadge";
+import { useOfflineOptional } from "@/components/OfflineProvider";
+import { OfflineTakeButton } from "@/components/OfflineTakeButton";
 import { PlatformBadge } from "@/components/PlatformBadge";
 import { type ReelView, thumbSrc, videoSrc } from "@/lib/types";
 
@@ -30,6 +33,7 @@ interface Props {
 export function ReelGrid({ reels, collections, removeFromCollectionId }: Props) {
   const [active, setActive] = useState<ReelView | null>(null);
   const [, startTransition] = useTransition();
+  const offline = useOfflineOptional();
 
   if (reels.length === 0) {
     return (
@@ -63,8 +67,9 @@ export function ReelGrid({ reels, collections, removeFromCollectionId }: Props) 
               </span>
             </button>
 
-            <div className="pointer-events-none absolute left-1.5 top-1.5">
+            <div className="pointer-events-none absolute left-1.5 top-1.5 flex flex-col gap-1">
               <PlatformBadge platform={reel.platform} />
+              {offline?.isCached(reel.id) && <OfflineCachedBadge />}
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
@@ -75,8 +80,13 @@ export function ReelGrid({ reels, collections, removeFromCollectionId }: Props) 
               )}
             </div>
 
-            <div className="absolute right-1.5 top-1.5">
+            <div className="absolute right-1.5 top-1.5 flex flex-col items-end gap-1">
               <FavoriteButton reelId={reel.id} initial={reel.isFavorite} size={20} />
+              <OfflineTakeButton
+                reel={reel}
+                size={18}
+                className="rounded-full bg-black/60 p-1.5"
+              />
             </div>
 
             {removeFromCollectionId && (
@@ -155,7 +165,10 @@ function ReelModal({
               <p className="mt-1 line-clamp-3 text-sm text-white/70">{reel.caption}</p>
             )}
           </div>
-          <FavoriteButton reelId={reel.id} initial={reel.isFavorite} />
+          <div className="flex shrink-0 items-center gap-2">
+            <OfflineTakeButton reel={reel} />
+            <FavoriteButton reelId={reel.id} initial={reel.isFavorite} />
+          </div>
         </div>
 
         {collections && collections.length > 0 && (

@@ -94,6 +94,22 @@ instead of the launchd scripts.
 
 Stop serving: `tailscale serve reset`.
 
+### Offline pocket (phone without VPN)
+
+The reader has an **Offline** tab (`/offline`). While the Mac is reachable (home
+Wi‑Fi or Tailscale), tap **Refresh** to download Instagram + TikTok favorites and
+recent videos into the phone’s IndexedDB (up to **2 GB**; Facebook excluded).
+After that, open the installed PWA and scroll those clips with Tailscale off.
+
+Also:
+- **Auto-refresh** runs when the browser comes back online (5‑minute cooldown)
+- Feed / grid show an **Offline** badge on cached reels
+- **Take offline** (download icon) on any IG/TikTok reel pins it into the pocket
+
+Videos are stored as blobs (not via the service worker) so seeking works. The
+service worker only caches the app shell. Use a production build (`npm run serve`
+/ launchd) so the SW registers — it is skipped in `next dev`.
+
 ---
 
 ## Moving your library to another machine
