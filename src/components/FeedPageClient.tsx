@@ -1,7 +1,7 @@
 "use client";
 
 import { CloudOff } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AutoScrollToggle } from "@/components/AutoScrollToggle";
@@ -17,6 +17,7 @@ import {
   listOfflineReels,
   OFFLINE_CHANGED_EVENT,
   offlineRecordsToViews,
+  orderOfflineReels,
   revokeBlobUrlMap,
 } from "@/lib/offline";
 import type { ReelView } from "@/lib/types";
@@ -32,6 +33,7 @@ type OnlineFeedResponse = {
 };
 
 export function FeedPageClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const orderParam = searchParams.get("order");
   const order: FeedOrder =
@@ -46,7 +48,9 @@ export function FeedPageClient() {
   const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [blobUrls, setBlobUrls] = useState<Map<string, string>>(new Map());
   const [reloadVersion, setReloadVersion] = useState(0);
+  const [localOrder, setLocalOrder] = useState<FeedOrder>(order);
   const blobUrlsRef = useRef<Map<string, string>>(new Map());
+  const randomSeedRef = useRef<number | null>(null);
   const [showOrderBar, setShowOrderBar] = useState(true);
   const [userPaused, setUserPaused] = useState(false);
   const [autoScroll, setAutoScroll] = useState(false);
@@ -54,6 +58,7 @@ export function FeedPageClient() {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(FEED_TASTE_CONFIG.player.videoOnlyStorageKey) === "true";
   });
+  const selectedOrder = hostReachable === false ? localOrder : order;
 
   const onVideoOnlyChange = useCallback((enabled: boolean) => {
     setVideoOnly(enabled);
@@ -95,9 +100,17 @@ export function FeedPageClient() {
         return [];
       });
       if (cancelled) return;
-      const nextUrls = createBlobUrlMap(records);
+      if (randomSeedRef.current === null) {
+        randomSeedRef.current = Date.now();
+      }
+      const ordered = orderOfflineReels(
+        records,
+        selectedOrder,
+        randomSeedRef.current,
+      );
+      const nextUrls = createBlobUrlMap(ordered);
       replaceBlobUrls(nextUrls);
-      setItems(offlineRecordsToViews(records));
+      setItems(offlineRecordsToViews(ordered));
       setCursor(null);
       setCollections([]);
       setMode("offline");
@@ -111,7 +124,7 @@ export function FeedPageClient() {
 
       try {
         const [feedResponse, collectionResponse] = await Promise.all([
-          fetch(`/api/reels?order=${order}`, {
+          fetch(`/api/reels?order=${selectedOrder}`, {
             cache: "no-store",
             signal: controller.signal,
           }),
@@ -147,7 +160,7 @@ export function FeedPageClient() {
       cancelled = true;
       controller.abort();
     };
-  }, [hostReachable, markHostUnavailable, order, reloadVersion]);
+  }, [hostReachable, markHostUnavailable, reloadVersion, selectedOrder]);
 
   useEffect(
     () => () => {
@@ -162,9 +175,24 @@ export function FeedPageClient() {
     [blobUrls],
   );
 
+  const offline = mode === "offline";
+  const displayOrder = offline ? localOrder : order;
+
+  const onOrderChange = useCallback(
+    (next: FeedOrder) => {
+      setLocalOrder(next);
+      if (offline) {
+        window.history.replaceState(null, "", `/?order=${next}`);
+      } else {
+        router.push(`/?order=${next}`);
+      }
+    },
+    [offline, router],
+  );
+
   const feedKey = useMemo(
-    () => `${mode}-${order}-${items.map((item) => item.id).join(",")}`,
-    [mode, order, items],
+    () => `${mode}-${displayOrder}-${items.map((item) => item.id).join(",")}`,
+    [mode, displayOrder, items],
   );
 
   if (mode === "loading") {
@@ -174,8 +202,6 @@ export function FeedPageClient() {
       </div>
     );
   }
-
-  const offline = mode === "offline";
 
   return (
     <div className="relative h-full">
@@ -188,13 +214,15 @@ export function FeedPageClient() {
         aria-hidden={!showOrderBar}
       >
         <div className="flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center justify-center gap-1.5 rounded-[1.35rem] border border-white/10 bg-black/45 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl">
-          {offline ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white/75">
+          <OrderSelect value={displayOrder} onChange={onOrderChange} />
+          {offline && (
+            <span
+              className="inline-flex size-7 items-center justify-center rounded-full text-white/55"
+              title="Using saved videos"
+              aria-label="Using saved videos"
+            >
               <CloudOff size={14} />
-              Saved feed
             </span>
-          ) : (
-            <OrderSelect value={order} />
           )}
           {userPaused && items.length > 0 && (
             <>
@@ -209,7 +237,7 @@ export function FeedPageClient() {
         key={feedKey}
         initialItems={items}
         initialCursor={cursor}
-        order={order}
+        order={displayOrder}
         autoScroll={autoScroll}
         videoOnly={videoOnly}
         collections={offline ? undefined : collections}

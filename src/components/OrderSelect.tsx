@@ -8,7 +8,15 @@ const OPTIONS = [
   { value: "random", label: "For you" },
 ] as const;
 
-export function OrderSelect({ value }: { value: string }) {
+type OrderValue = (typeof OPTIONS)[number]["value"];
+
+export function OrderSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange?: (value: OrderValue) => void;
+}) {
   const router = useRouter();
 
   return (
@@ -25,7 +33,10 @@ export function OrderSelect({ value }: { value: string }) {
             type="button"
             role="tab"
             aria-selected={active}
-            onClick={() => router.push(`/?order=${opt.value}`)}
+            onClick={() => {
+              if (onChange) onChange(opt.value);
+              else router.push(`/?order=${opt.value}`);
+            }}
             className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
               active
                 ? "bg-white text-black shadow-sm"
