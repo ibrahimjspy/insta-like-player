@@ -4,7 +4,8 @@
 
 Import likes from Instagram, TikTok, and Facebook using each platform's official
 data export. Download the media locally with `yt-dlp`. Browse everything in a
-fast web app — vertical feed, full-text search, favorites, and custom collections.
+fast web app — vertical feed, full-text search, favorites, custom collections,
+and a seamless offline pocket for your phone.
 
 Not affiliated with Meta, ByteDance, or any social platform. Use only with **your
 own** exported data.
@@ -41,6 +42,7 @@ own** exported data.
 [Features](#features) ·
 [Supported platforms](#supported-platforms) ·
 [Quick start](#quick-start) ·
+[Phone offline mode](#phone-offline-mode) ·
 [Configuration](#configuration) ·
 [FAQ](#faq) ·
 [Roadmap](#roadmap) ·
@@ -60,6 +62,7 @@ gives you:
 - **Search** — caption, creator, hashtag, and platform filters
 - **Collections & favorites** — curate subsets without touching the original platforms
 - **Self-hosted** — single-user, runs on your machine; optional Tailscale access from your phone
+- **Offline on your phone** — save a private 2 GB pocket and keep using the normal feed without the Mac
 
 No scraping. No login automation. Discovery comes from official exports; downloads
 use `yt-dlp` with optional session cookies you provide.
@@ -90,6 +93,7 @@ Platform export (JSON)  ──►  ingest  ──►  PostgreSQL  ◄──  syn
 | **Import** | Parse `liked_posts.json`, `user_data_tiktok.json`, or Facebook `posts_and_comments.json` / saved collections into the DB |
 | **Sync** | Download video + thumbnail + metadata for each pending item |
 | **Browse** | Stream from `/api/media/...` with HTTP range support (scrubbing works) |
+| **Take offline** | Store a prioritized IG/TikTok pocket in the phone's IndexedDB for local playback |
 
 ---
 
@@ -108,6 +112,24 @@ Platform export (JSON)  ──►  ingest  ──►  PostgreSQL  ◄──  syn
 - Upload exports per platform
 - Run and monitor background sync
 - Inspect reel status (pending, downloaded, failed, unavailable)
+- Refresh and inspect the current phone's offline pocket
+
+### Phone offline mode
+
+Install Like Player from its private HTTPS Tailscale URL with **Add to Home
+Screen**, then run the first phone refresh from **Admin → Phone playback**. The
+normal feed automatically switches between the live Mac library and local
+IndexedDB video blobs—there is no separate offline player.
+
+- Up to **2 GB** per device, with an **80 MB** per-file limit
+- Instagram and TikTok videos; Facebook remains online-only
+- Favorites first, then recent videos; **Take offline** keeps selected reels pinned
+- **Recent**, **Oldest**, and **For you** ordering also work while disconnected
+- Existing pockets refresh when the app opens, reconnects, or returns to focus
+
+The phone still needs LAN or Tailscale access for refreshes, but not for
+playback. See **[docs/OFFLINE.md](docs/OFFLINE.md)** for setup, policy, and
+limitations.
 
 ### For you feed
 
@@ -246,11 +268,12 @@ All settings flow through `.env` → `src/lib/config.ts`:
 prisma/schema.prisma       Reels, creators, hashtags, collections, engagement
 src/lib/platforms/         Instagram, TikTok, Facebook export parsers
 src/lib/feed/              For you scoring, taste classification, SQL ranker
+src/lib/offline/           IndexedDB pocket, sync policy, local feed ordering
 src/lib/queries.ts         Feed, search, collections, favorites
 src/app/(reader)/          Feed, search, collections, favorites
 src/app/admin/             Import, sync, reel management
 src/app/api/media/         Local media streaming with range requests
-docs/                      FEED_RECOMMENDATIONS.md, DEPLOYMENT.md
+docs/                      Feed, deployment, and offline-mode guides
 ```
 
 ---
@@ -259,7 +282,9 @@ docs/                      FEED_RECOMMENDATIONS.md, DEPLOYMENT.md
 
 Run as an always-on personal server and reach it from your phone over
 [Tailscale](https://tailscale.com) — no cloud, no public exposure. See
-**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. Once the phone pocket has been
+refreshed, the installed PWA continues playing saved videos without Tailscale;
+see **[docs/OFFLINE.md](docs/OFFLINE.md)**.
 
 ```bash
 npm run build
@@ -285,7 +310,7 @@ required.
 ## Tech stack
 
 Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · PostgreSQL · Prisma 7 ·
-`yt-dlp` · Docker Compose · Vitest
+PWA/Service Worker · IndexedDB · `yt-dlp` · Docker Compose · Vitest
 
 ---
 
@@ -325,6 +350,12 @@ Set it to `false` to attempt everything.
 **Can it auto-sync new likes?**
 Not by default — discovery is export-based to stay scraping-free. An opt-in,
 flagged Playwright auto-sync is on the roadmap.
+
+**Does the phone pocket refresh automatically?**
+Yes, after its first manual refresh. When the app launches, reconnects, or
+returns to focus, it checks whether the Mac is reachable and pulls newly
+downloaded eligible videos after a five-minute cooldown. Browsers do not let it
+keep syncing indefinitely while the PWA is fully closed.
 
 ---
 
