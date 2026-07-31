@@ -15,6 +15,8 @@ own** exported data.
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
 
+[**Visit the Like Player website →**](https://likeplayer.ibrahimsajid.com)
+
 <p align="center">
   <img src="docs/media/demo.gif" alt="Like Player — vertical For you feed" width="300"><br>
   <sub><b>For you feed</b> — vertical, snap-scrolling, ranked by your watch behavior</sub>
