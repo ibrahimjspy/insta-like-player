@@ -11,6 +11,7 @@ import { OrderSelect } from "@/components/OrderSelect";
 import { useReaderChrome } from "@/components/ReaderChromeContext";
 import { ReelFeed } from "@/components/ReelFeed";
 import { VideoOnlyToggle } from "@/components/VideoOnlyToggle";
+import { readPosition } from "@/lib/feed/player-state";
 import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
 import {
   createBlobUrlMap,
@@ -40,6 +41,7 @@ export function FeedPageClient() {
     orderParam && ORDERS.includes(orderParam as FeedOrder)
       ? (orderParam as FeedOrder)
       : "recent";
+  const [orderReady, setOrderReady] = useState(false);
   const { setFeedPausedChrome } = useReaderChrome();
   const { hostReachable, markHostUnavailable, probeHost } = useOffline();
   const [mode, setMode] = useState<FeedMode>("loading");
@@ -48,6 +50,7 @@ export function FeedPageClient() {
   const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [blobUrls, setBlobUrls] = useState<Map<string, string>>(new Map());
   const [reloadVersion, setReloadVersion] = useState(0);
+  const [loadedOrder, setLoadedOrder] = useState<FeedOrder>(order);
   const [localOrder, setLocalOrder] = useState<FeedOrder>(order);
   const blobUrlsRef = useRef<Map<string, string>>(new Map());
   const randomSeedRef = useRef<number | null>(null);
@@ -59,6 +62,24 @@ export function FeedPageClient() {
     return localStorage.getItem(FEED_TASTE_CONFIG.player.videoOnlyStorageKey) === "true";
   });
   const selectedOrder = hostReachable === false ? localOrder : order;
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      let saved: string | null = null;
+      try { saved = localStorage.getItem("ilp_last_order"); } catch { /* Storage unavailable. */ }
+      if (!orderParam && saved && ORDERS.includes(saved as FeedOrder)) {
+        setLocalOrder(saved as FeedOrder);
+        router.replace(`/?order=${saved}`);
+      }
+      setOrderReady(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [orderParam, router]);
+
+  useEffect(() => {
+    if (!orderReady || !orderParam) return;
+    try { localStorage.setItem("ilp_last_order", order); } catch { /* Storage unavailable. */ }
+  }, [order, orderParam, orderReady]);
 
   const onVideoOnlyChange = useCallback((enabled: boolean) => {
     setVideoOnly(enabled);
@@ -84,7 +105,7 @@ export function FeedPageClient() {
   }, []);
 
   useEffect(() => {
-    if (hostReachable === null) return;
+    if (hostReachable === null || !orderReady) return;
     let cancelled = false;
     const controller = new AbortController();
 
@@ -101,7 +122,11 @@ export function FeedPageClient() {
       });
       if (cancelled) return;
       if (randomSeedRef.current === null) {
-        randomSeedRef.current = Date.now();
+        try {
+          const seed = Number(localStorage.getItem("ilp_shuffle_seed"));
+          randomSeedRef.current = seed > 0 && Number.isFinite(seed) ? seed : Date.now();
+          localStorage.setItem("ilp_shuffle_seed", String(randomSeedRef.current));
+        } catch { randomSeedRef.current = Date.now(); }
       }
       const ordered = orderOfflineReels(
         records,
@@ -110,6 +135,7 @@ export function FeedPageClient() {
       );
       const nextUrls = createBlobUrlMap(ordered);
       replaceBlobUrls(nextUrls);
+      setLoadedOrder(selectedOrder);
       setItems(offlineRecordsToViews(ordered));
       setCursor(null);
       setCollections([]);
@@ -124,7 +150,7 @@ export function FeedPageClient() {
 
       try {
         const [feedResponse, collectionResponse] = await Promise.all([
-          fetch(`/api/reels?order=${selectedOrder}`, {
+          fetch(`/api/reels?order=${selectedOrder}&resume=${encodeURIComponent(readPosition(`ilp_position_online_${selectedOrder}`)?.reelId ?? "")}`, {
             cache: "no-store",
             signal: controller.signal,
           }),
@@ -142,6 +168,7 @@ export function FeedPageClient() {
         ])) as [OnlineFeedResponse, CollectionOption[]];
         if (cancelled) return;
         replaceBlobUrls(new Map());
+        setLoadedOrder(selectedOrder);
         setItems(feed.items);
         setCursor(feed.nextCursor);
         setCollections(nextCollections);
@@ -160,7 +187,7 @@ export function FeedPageClient() {
       cancelled = true;
       controller.abort();
     };
-  }, [hostReachable, markHostUnavailable, reloadVersion, selectedOrder]);
+  }, [hostReachable, markHostUnavailable, reloadVersion, selectedOrder, orderReady]);
 
   useEffect(
     () => () => {
@@ -181,6 +208,7 @@ export function FeedPageClient() {
   const onOrderChange = useCallback(
     (next: FeedOrder) => {
       setLocalOrder(next);
+      try { localStorage.setItem("ilp_last_order", next); } catch { /* Storage unavailable. */ }
       if (offline) {
         window.history.replaceState(null, "", `/?order=${next}`);
       } else {
@@ -191,8 +219,8 @@ export function FeedPageClient() {
   );
 
   const feedKey = useMemo(
-    () => `${mode}-${displayOrder}-${items.map((item) => item.id).join(",")}`,
-    [mode, displayOrder, items],
+    () => `${mode}-${loadedOrder}-${items.map((item) => item.id).join(",")}`,
+    [mode, loadedOrder, items],
   );
 
   if (mode === "loading") {
@@ -228,16 +256,24 @@ export function FeedPageClient() {
             <>
               <span className="mx-0.5 hidden h-6 w-px bg-white/10 sm:block" />
               <VideoOnlyToggle enabled={videoOnly} onChange={onVideoOnlyChange} />
-              <AutoScrollToggle enabled={autoScroll} onChange={setAutoScroll} />
+              <AutoScrollToggle enabled={autoScroll} onChange={(enabled) => {
+                if (enabled) {
+                  const video = document.querySelector<HTMLVideoElement>("[data-active-reel] video");
+                  // Keep play inside the tap gesture for mobile browser permission.
+                  if (video) void video.play().catch(() => undefined);
+                }
+                setAutoScroll(enabled);
+              }} />
             </>
           )}
         </div>
       </div>
       <ReelFeed
         key={feedKey}
+        resumeKey={`ilp_position_${mode}_${loadedOrder}`}
         initialItems={items}
         initialCursor={cursor}
-        order={displayOrder}
+        order={loadedOrder}
         autoScroll={autoScroll}
         videoOnly={videoOnly}
         collections={offline ? undefined : collections}

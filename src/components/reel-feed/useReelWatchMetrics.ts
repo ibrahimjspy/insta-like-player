@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { flushWatchTime, recordWatch } from "@/app/actions";
+import { recordManualInterest } from "@/lib/feed/auto-ranking";
 import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
 
 const P = FEED_TASTE_CONFIG.player;
@@ -35,6 +36,7 @@ export function useReelWatchMetrics({
   const accumulatedWatchSec = useRef(0);
   const accumulatedLoops = useRef(0);
   const sessionWatchSec = useRef(0);
+  const sessionWasAuto = useRef(false);
   const sessionMaxPositionSec = useRef(0);
   const sessionLoopCount = useRef(0);
   const autoScrollLoops = useRef(0);
@@ -53,6 +55,8 @@ export function useReelWatchMetrics({
     accumulatedLoops.current = 0;
 
     if (classifySession) {
+      recordManualInterest(reelId, totalWatchSec, durationSec, sessionWasAuto.current);
+      sessionWasAuto.current = false;
       sessionWatchSec.current = 0;
       sessionMaxPositionSec.current = 0;
       sessionLoopCount.current = 0;
@@ -102,6 +106,7 @@ export function useReelWatchMetrics({
 
     const onTimeUpdate = () => {
       if (!el.paused) {
+        if (autoScroll) sessionWasAuto.current = true;
         const t = el.currentTime;
         if (lastVideoTime.current > 0 && t >= lastVideoTime.current) {
           const delta = Math.min(

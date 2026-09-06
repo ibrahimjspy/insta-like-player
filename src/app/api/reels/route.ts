@@ -16,6 +16,6 @@ export async function GET(request: NextRequest) {
     ? excludeRaw.split(",").map((s) => s.trim()).filter(Boolean)
     : undefined;
 
-  const page = await getFeed({ order, cursor, excludeIds });
+  const page = await getFeed({ order, cursor, excludeIds, resumeId: searchParams.get("resume") });
   return NextResponse.json(page);
 }

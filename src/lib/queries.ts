@@ -42,11 +42,26 @@ export async function getFeed(params: {
   order?: FeedOrder;
   cursor?: string | null;
   take?: number;
+  resumeId?: string | null;
   /// Reel ids already shown this session (For you avoids immediate repeats).
   excludeIds?: string[];
 }): Promise<FeedPage> {
   const take = params.take ?? config.feedPageSize;
   const order = params.order ?? "recent";
+
+  if (params.resumeId) {
+    const anchor = await prisma.reel.findFirst({
+      where: { id: params.resumeId, status: ReelStatus.DOWNLOADED },
+      select: reelCardSelect,
+    });
+    if (anchor) {
+      const page = await getFeed({ ...params, resumeId: null,
+        cursor: order === "random" ? null : anchor.id,
+        excludeIds: [...(params.excludeIds ?? []), anchor.id],
+      });
+      return { ...page, items: [anchor, ...page.items] };
+    }
+  }
 
   if (order === "random") {
     await backfillEngagementFromHistory();

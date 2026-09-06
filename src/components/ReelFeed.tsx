@@ -1,7 +1,7 @@
 "use client";
 
 import { Ban, ExternalLink, Trash2, Volume2, VolumeX } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { deleteReel, skipReel } from "@/app/actions";
 import { CollectionAddButton, type CollectionOption } from "@/components/CollectionAddButton";
@@ -18,6 +18,8 @@ import {
 } from "@/components/reel-feed/player-gestures";
 import { useFeedActiveSlide, useOnReelActivated } from "@/components/reel-feed/useFeedActiveSlide";
 import { useReelWatchMetrics } from "@/components/reel-feed/useReelWatchMetrics";
+import { rankAutoQueue, readInterest } from "@/lib/feed/auto-ranking";
+import { readPosition, savePosition } from "@/lib/feed/player-state";
 import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
 import {
   buildFeedFetchUrl,
@@ -40,6 +42,7 @@ function initialFeedState(reels: ReelView[]) {
 }
 
 interface Props {
+  resumeKey?: string;
   initialItems: ReelView[];
   initialCursor: string | null;
   order: FeedOrder;
@@ -59,6 +62,7 @@ interface Props {
 
 export function ReelFeed({
   initialItems,
+  resumeKey,
   initialCursor,
   order,
   paginate = true,
@@ -72,7 +76,12 @@ export function ReelFeed({
   resolveVideoSrc,
   localOnly = false,
 }: Props) {
-  const [feedInit] = useState(() => initialFeedState(initialItems));
+  const [resume] = useState(() => resumeKey ? readPosition(resumeKey) : null);
+  const [feedInit] = useState(() => {
+    const state = initialFeedState(initialItems);
+    state.activeReelId = state.items.find((item) => item.id === resume?.reelId)?.feedKey ?? state.activeReelId;
+    return state;
+  });
   const [items, setItems] = useState<FeedItem[]>(feedInit.items);
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [randomExhausted, setRandomExhausted] = useState(false);
@@ -102,6 +111,12 @@ export function ReelFeed({
   const onActiveChange = useCallback((nextId: string | null) => {
     setActiveReelId((prev) => nextId ?? prev);
   }, []);
+
+  useLayoutEffect(() => {
+    const root = feedRef.current;
+    const index = feedInit.items.findIndex((item) => item.feedKey === feedInit.activeReelId);
+    if (root && index > 0) root.scrollTop = index * root.clientHeight;
+  }, [feedInit]);
 
   useFeedActiveSlide(feedRef, items.length, onActiveChange);
 
@@ -223,6 +238,7 @@ export function ReelFeed({
         excludeReelIds: recentReelIds.current,
       });
       const res = await fetch(url);
+      if (!res.ok) throw new Error("Unable to load more videos");
       const page = (await res.json()) as { items: ReelView[]; nextCursor: string | null };
       setItems((prev) => [...prev, ...withFeedKeys(page.items, prev.length)]);
       const next = nextFeedPaginationState({
@@ -233,6 +249,8 @@ export function ReelFeed({
       });
       setCursor(next.cursor);
       setRandomExhausted(next.randomExhausted);
+    } catch (error) {
+      console.warn("Feed pagination unavailable", error);
     } finally {
       loadingRef.current = false;
       setLoading(false);
@@ -273,11 +291,31 @@ export function ReelFeed({
   );
 
   const advanceToNextSlide = useCallback(() => {
-    if (activeIndex < 0 || activeIndex >= items.length - 1) return;
-    scrollToSlide(activeIndex + 1);
+    if (activeIndex < 0) return;
+    const next = activeIndex + 1;
+    if (next >= items.length) {
+      if (hasMore) {
+        void loadMore();
+      } else {
+        feedRef.current?.querySelector<HTMLVideoElement>("[data-active-reel] video")?.pause();
+        setUserPaused(true);
+        onUserPausedChange?.(true);
+      }
+      return;
+    }
+    scrollToSlide(next);
     setUserPaused(false);
     onUserPausedChange?.(false);
-  }, [activeIndex, items.length, scrollToSlide, onUserPausedChange]);
+  }, [activeIndex, items, hasMore, loadMore, scrollToSlide, onUserPausedChange]);
+
+  useEffect(() => {
+    if (!autoScroll || order !== "random") return;
+    const frame = requestAnimationFrame(() => {
+      const interest = readInterest();
+      setItems((current) => rankAutoQueue(current, activeReelId, order, autoScroll, interest));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [autoScroll, order, activeReelId, items.length]);
 
   if (items.length === 0) {
     return <EmptyFeed title={emptyTitle} hint={emptyHint} />;
@@ -298,6 +336,8 @@ export function ReelFeed({
           <ReelSlide
             key={reel.feedKey}
             reel={reel}
+            resumeKey={resumeKey}
+            initialTime={reel.feedKey === feedInit.activeReelId && reel.id === resume?.reelId ? resume.time : 0}
             isActive={activeReelId === reel.feedKey}
             isNearActive={isNearActive}
             scrollRoot={feedRef}
@@ -323,6 +363,8 @@ export function ReelFeed({
 
 function ReelSlide({
   reel,
+  resumeKey,
+  initialTime,
   isActive,
   isNearActive,
   scrollRoot,
@@ -340,6 +382,8 @@ function ReelSlide({
   localOnly = false,
 }: {
   reel: FeedItem;
+  resumeKey?: string;
+  initialTime: number;
   isActive: boolean;
   isNearActive: boolean;
   scrollRoot: React.RefObject<HTMLDivElement | null>;
@@ -388,24 +432,45 @@ function ReelSlide({
     if (videoRef.current) videoRef.current.muted = muted;
   }, [muted, videoRef]);
 
+  const restoredTime = useRef(false);
   const primeFirstFrame = useCallback((el: HTMLVideoElement) => {
-    if (el.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
-    const wasMuted = el.muted;
-    el.muted = true;
-    el.currentTime = 0;
-    void el
-      .play()
-      .then(() => {
+    if (!restoredTime.current) {
+      el.currentTime = Number.isFinite(el.duration)
+        ? Math.min(initialTime, Math.max(0, el.duration - 0.1)) : initialTime;
+      restoredTime.current = true;
+    }
+    setFrameReady(true);
+  }, [initialTime]);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !isActive || !resumeKey || !attachVideo) return;
+    let resumeOnVisible = false;
+    const save = () => {
+      if (restoredTime.current) savePosition(resumeKey, { reelId: reel.id, time: el.currentTime });
+    };
+    const visibilityChanged = () => {
+      save();
+      if (document.hidden) {
+        resumeOnVisible = !el.paused;
         el.pause();
-        el.currentTime = 0;
-        el.muted = wasMuted;
-        setFrameReady(true);
-      })
-      .catch(() => {
-        el.muted = wasMuted;
-        setFrameReady(true);
-      });
-  }, []);
+      } else if (resumeOnVisible) {
+        resumeOnVisible = false;
+        void el.play().catch(() => onUserPaused?.(true));
+      }
+    };
+    el.addEventListener("timeupdate", save);
+    el.addEventListener("pause", save);
+    window.addEventListener("pagehide", save);
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      save();
+      el.removeEventListener("timeupdate", save);
+      el.removeEventListener("pause", save);
+      window.removeEventListener("pagehide", save);
+      document.removeEventListener("visibilitychange", visibilityChanged);
+    };
+  }, [isActive, attachVideo, resumeKey, reel.id, videoRef, onUserPaused]);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -423,6 +488,7 @@ function ReelSlide({
   useEffect(() => {
     const el = videoRef.current;
     if (!el || !isActive || !frameReady) return;
+    if (document.hidden) return;
     el.muted = muted;
     void el
       .play()
@@ -509,6 +575,7 @@ function ReelSlide({
   return (
     <section
       data-reel-slide
+      data-active-reel={isActive ? "true" : undefined}
       data-reel-id={reel.feedKey}
       className="feed-snap-slide relative flex h-full w-full shrink-0 items-center justify-center overflow-hidden bg-black"
     >
@@ -527,6 +594,7 @@ function ReelSlide({
             const el = videoRef.current;
             if (el) primeFirstFrame(el);
           }}
+          onPlay={() => { if (isActive) onUserPaused?.(false); }}
           onPointerUp={onVideoTap}
         />
       </div>
