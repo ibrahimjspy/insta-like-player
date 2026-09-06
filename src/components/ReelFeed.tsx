@@ -10,6 +10,7 @@ import { OfflineCachedBadge } from "@/components/OfflineCachedBadge";
 import { useOfflineOptional } from "@/components/OfflineProvider";
 import { OfflineTakeButton } from "@/components/OfflineTakeButton";
 import { PlatformBadge } from "@/components/PlatformBadge";
+import { startPlayback } from "@/components/reel-feed/playback";
 import { SeekFeedback, type SeekDirection } from "@/components/reel-feed/SeekFeedback";
 import { VideoScrubber } from "@/components/reel-feed/VideoScrubber";
 import {
@@ -419,6 +420,7 @@ function ReelSlide({
     key: number;
   } | null>(null);
   const [frameReady, setFrameReady] = useState(false);
+  const [actualMuted, setActualMuted] = useState(muted);
   const lastTapAt = useRef(0);
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { fav, toggle: toggleFav, pending: favoritePending } = useFavorite(
@@ -489,16 +491,24 @@ function ReelSlide({
     const el = videoRef.current;
     if (!el || !isActive || !frameReady) return;
     if (document.hidden) return;
-    el.muted = muted;
-    void el
-      .play()
-      .catch(() => {
-        el.muted = true;
-        return el.play();
-      })
-      .catch(() => undefined);
-    recordSessionStart();
-  }, [isActive, muted, frameReady, recordSessionStart, videoRef]);
+    let cancelled = false;
+    void startPlayback(el, muted, () => !cancelled && !document.hidden)
+      .then((started) => { if (started) recordSessionStart(); })
+      .catch(() => { if (!cancelled) onUserPaused?.(true); });
+    return () => { cancelled = true; };
+  }, [isActive, muted, frameReady, recordSessionStart, videoRef, onUserPaused]);
+
+  const enableSound = () => {
+    const el = videoRef.current;
+    if (!el || !isActive) return;
+    // Unmute and play synchronously within the tap, before awaiting anything.
+    el.muted = false;
+    void el.play().catch(() => {
+      el.muted = true;
+      onUserPaused?.(true);
+    });
+    if (muted) onToggleMute();
+  };
 
   const togglePlay = () => {
     const el = videoRef.current;
@@ -529,6 +539,12 @@ function ReelSlide({
     if (e.pointerType === "mouse" && e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    if (videoRef.current?.muted && !muted) {
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+      lastTapAt.current = 0;
+      enableSound();
+      return;
+    }
 
     const now = Date.now();
     const sinceLast = now - lastTapAt.current;
@@ -594,10 +610,24 @@ function ReelSlide({
             const el = videoRef.current;
             if (el) primeFirstFrame(el);
           }}
+          onVolumeChange={(event) => setActualMuted(event.currentTarget.muted)}
           onPlay={() => { if (isActive) onUserPaused?.(false); }}
           onPointerUp={onVideoTap}
         />
       </div>
+
+      {isActive && actualMuted && !muted && !showChrome && (
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => { event.stopPropagation(); enableSound(); }}
+          aria-label="Turn sound on"
+          title="Turn sound on"
+          className="absolute bottom-[calc(1.75rem+env(safe-area-inset-bottom))] right-3 z-30 grid size-11 place-items-center rounded-full bg-black/35 text-white/90 shadow-lg backdrop-blur-md"
+        >
+          <VolumeX size={20} />
+        </button>
+      )}
 
       {seekBurst && (
         <SeekFeedback
@@ -639,8 +669,8 @@ function ReelSlide({
                 className="size-10 rounded-full bg-black/25 shadow-lg shadow-black/25 backdrop-blur-md hover:bg-black/35"
               />
             )}
-            <RailButton label={muted ? "Unmute" : "Mute"} onClick={onToggleMute}>
-              {muted ? <VolumeX size={26} /> : <Volume2 size={26} />}
+            <RailButton label={actualMuted ? "Unmute" : "Mute"} onClick={actualMuted ? enableSound : onToggleMute}>
+              {actualMuted ? <VolumeX size={26} /> : <Volume2 size={26} />}
             </RailButton>
             {!localOnly && (
               <>
