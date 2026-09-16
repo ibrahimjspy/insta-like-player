@@ -107,6 +107,18 @@ export const FEED_TASTE_CONFIG = {
   /** Infinite scroll: exclude recently shown reel ids from the next batch. */
   exclude: {
     maxSessionIds: 48,
+    /** Client-side For you pages (offline pocket + local wrap). */
+    localPageSize: 10,
+  },
+
+  /**
+   * Device-local watch recency (localStorage). Used offline when Postgres
+   * engagement is unreachable, and to restart For you without repeating
+   * clips watched in the last day.
+   */
+  watchIndex: {
+    storageKey: "ilp_watch_index",
+    maxEntries: 500,
   },
 
   /** One-time backfill from `WatchHistory` when engagement is empty. */

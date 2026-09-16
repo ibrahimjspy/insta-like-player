@@ -54,6 +54,12 @@ request:
 - **Mac unreachable:** the same Feed automatically reads saved records and
   video blobs from IndexedDB. No separate offline viewer is needed.
 
+**For you** stays infinite offline. The pocket is ranked from a device-local
+watch index (`ilp_watch_index`: last watched time + count) so unseen and
+not-recently-watched clips come first. Reaching the end loads another shuffled
+page instead of “You’re all caught up.” Tapping **Recent** / **Oldest** jumps
+to the top of that list; tapping **For you** starts a new shuffle.
+
 Search, collections, favorites, Admin, and server-backed reel actions are
 disabled while disconnected. Playback, scrolling, seeking, mute, and
 auto-scroll remain local and continue working.

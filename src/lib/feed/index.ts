@@ -17,6 +17,13 @@ export {
   type WatchFlushMetrics,
 } from "@/lib/feed/engagement";
 export {
+  markWatched,
+  readWatchIndex,
+  recentWatchedIds,
+  type WatchIndex,
+  type WatchIndexEntry,
+} from "@/lib/feed/watch-index";
+export {
   buildSmartFeedIdsSql,
   sqlDurationBucketCase,
   sqlFloat,

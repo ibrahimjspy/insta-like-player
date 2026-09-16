@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { flushWatchTime, recordWatch } from "@/app/actions";
 import { recordManualInterest } from "@/lib/feed/auto-ranking";
 import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
+import { markWatched } from "@/lib/feed/watch-index";
 
 const P = FEED_TASTE_CONFIG.player;
 const S = FEED_TASTE_CONFIG.session;
@@ -81,6 +82,7 @@ export function useReelWatchMetrics({
   const recordSessionStart = useCallback(() => {
     if (watched.current) return;
     watched.current = true;
+    markWatched(reelId);
     if (!persistEnabled) return;
     recordWatch(reelId).catch(() => undefined);
   }, [reelId, persistEnabled]);

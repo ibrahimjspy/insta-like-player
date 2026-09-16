@@ -2,7 +2,7 @@
 
 import { CloudOff } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { AutoScrollToggle } from "@/components/AutoScrollToggle";
 import { type CollectionOption } from "@/components/CollectionAddButton";
@@ -11,20 +11,28 @@ import { OrderSelect } from "@/components/OrderSelect";
 import { useReaderChrome } from "@/components/ReaderChromeContext";
 import { ReelFeed } from "@/components/ReelFeed";
 import { VideoOnlyToggle } from "@/components/VideoOnlyToggle";
-import { readPosition } from "@/lib/feed/player-state";
 import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
+import {
+  clearPosition,
+  readPosition,
+  setPositionWritesEnabled,
+} from "@/lib/feed/player-state";
+import { readWatchIndex } from "@/lib/feed/watch-index";
 import {
   createBlobUrlMap,
   listOfflineReels,
+  nextOfflineRandomPage,
   OFFLINE_CHANGED_EVENT,
   offlineRecordsToViews,
   orderOfflineReels,
   revokeBlobUrlMap,
+  startWithResume,
 } from "@/lib/offline";
 import type { ReelView } from "@/lib/types";
 import type { FeedOrder } from "@/lib/queries";
 
 const ORDERS: FeedOrder[] = ["recent", "oldest", "random"];
+const LOCAL_PAGE = FEED_TASTE_CONFIG.exclude.localPageSize;
 
 type FeedMode = "loading" | "online" | "offline";
 
@@ -32,6 +40,14 @@ type OnlineFeedResponse = {
   items: ReelView[];
   nextCursor: string | null;
 };
+
+function positionKey(mode: "online" | "offline", order: FeedOrder) {
+  return `ilp_position_${mode}_${order}`;
+}
+
+function newShuffleSeed(): number {
+  return Date.now();
+}
 
 export function FeedPageClient() {
   const router = useRouter();
@@ -46,14 +62,17 @@ export function FeedPageClient() {
   const { hostReachable, markHostUnavailable, probeHost } = useOffline();
   const [mode, setMode] = useState<FeedMode>("loading");
   const [items, setItems] = useState<ReelView[]>([]);
+  const [localPool, setLocalPool] = useState<ReelView[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [blobUrls, setBlobUrls] = useState<Map<string, string>>(new Map());
   const [reloadVersion, setReloadVersion] = useState(0);
   const [loadedOrder, setLoadedOrder] = useState<FeedOrder>(order);
   const [localOrder, setLocalOrder] = useState<FeedOrder>(order);
+  const [feedGeneration, setFeedGeneration] = useState(0);
   const blobUrlsRef = useRef<Map<string, string>>(new Map());
   const randomSeedRef = useRef<number | null>(null);
+  const skipResumeRef = useRef(false);
   const [showOrderBar, setShowOrderBar] = useState(true);
   const [userPaused, setUserPaused] = useState(false);
   const [autoScroll, setAutoScroll] = useState(false);
@@ -108,11 +127,19 @@ export function FeedPageClient() {
     if (hostReachable === null || !orderReady) return;
     let cancelled = false;
     const controller = new AbortController();
+    const skipResume = skipResumeRef.current;
 
     const replaceBlobUrls = (next: Map<string, string>) => {
       revokeBlobUrlMap(blobUrlsRef.current);
       blobUrlsRef.current = next;
       setBlobUrls(next);
+    };
+
+    const finishLoad = (nextMode: Exclude<FeedMode, "loading">, nextOrder: FeedOrder) => {
+      skipResumeRef.current = false;
+      setLoadedOrder(nextOrder);
+      setMode(nextMode);
+      setFeedGeneration((generation) => generation + 1);
     };
 
     const loadOffline = async () => {
@@ -124,22 +151,33 @@ export function FeedPageClient() {
       if (randomSeedRef.current === null) {
         try {
           const seed = Number(localStorage.getItem("ilp_shuffle_seed"));
-          randomSeedRef.current = seed > 0 && Number.isFinite(seed) ? seed : Date.now();
+          randomSeedRef.current = seed > 0 && Number.isFinite(seed) ? seed : newShuffleSeed();
           localStorage.setItem("ilp_shuffle_seed", String(randomSeedRef.current));
-        } catch { randomSeedRef.current = Date.now(); }
+        } catch { randomSeedRef.current = newShuffleSeed(); }
       }
-      const ordered = orderOfflineReels(
-        records,
-        selectedOrder,
-        randomSeedRef.current,
+      const seed = randomSeedRef.current ?? newShuffleSeed();
+      randomSeedRef.current = seed;
+      const watchIndex = readWatchIndex();
+      let ordered = offlineRecordsToViews(
+        orderOfflineReels(records, selectedOrder, seed, watchIndex),
       );
-      const nextUrls = createBlobUrlMap(ordered);
+      const resumeId = skipResume
+        ? null
+        : readPosition(positionKey("offline", selectedOrder))?.reelId ?? null;
+      if (selectedOrder === "random") {
+        ordered = startWithResume(ordered, resumeId);
+        setLocalPool(ordered);
+        setItems(ordered.slice(0, LOCAL_PAGE));
+        setCursor("more");
+      } else {
+        setLocalPool([]);
+        setItems(ordered);
+        setCursor(null);
+      }
+      const nextUrls = createBlobUrlMap(records);
       replaceBlobUrls(nextUrls);
-      setLoadedOrder(selectedOrder);
-      setItems(offlineRecordsToViews(ordered));
-      setCursor(null);
       setCollections([]);
-      setMode("offline");
+      finishLoad("offline", selectedOrder);
     };
 
     const load = async () => {
@@ -149,11 +187,17 @@ export function FeedPageClient() {
       }
 
       try {
+        const resumeId = skipResume
+          ? ""
+          : readPosition(positionKey("online", selectedOrder))?.reelId ?? "";
         const [feedResponse, collectionResponse] = await Promise.all([
-          fetch(`/api/reels?order=${selectedOrder}&resume=${encodeURIComponent(readPosition(`ilp_position_online_${selectedOrder}`)?.reelId ?? "")}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
+          fetch(
+            `/api/reels?order=${selectedOrder}&resume=${encodeURIComponent(resumeId)}`,
+            {
+              cache: "no-store",
+              signal: controller.signal,
+            },
+          ),
           fetch("/api/collections", {
             cache: "no-store",
             signal: controller.signal,
@@ -168,11 +212,11 @@ export function FeedPageClient() {
         ])) as [OnlineFeedResponse, CollectionOption[]];
         if (cancelled) return;
         replaceBlobUrls(new Map());
-        setLoadedOrder(selectedOrder);
+        setLocalPool([]);
         setItems(feed.items);
         setCursor(feed.nextCursor);
         setCollections(nextCollections);
-        setMode("online");
+        finishLoad("online", selectedOrder);
       } catch (err) {
         if (cancelled || (err instanceof Error && err.name === "AbortError")) return;
         markHostUnavailable();
@@ -189,6 +233,10 @@ export function FeedPageClient() {
     };
   }, [hostReachable, markHostUnavailable, reloadVersion, selectedOrder, orderReady]);
 
+  useLayoutEffect(() => {
+    setPositionWritesEnabled(true);
+  }, [feedGeneration]);
+
   useEffect(
     () => () => {
       revokeBlobUrlMap(blobUrlsRef.current);
@@ -202,25 +250,51 @@ export function FeedPageClient() {
     [blobUrls],
   );
 
+  const loadMoreOfflineRandom = useCallback(
+    (excludeReelIds: string[]) =>
+      nextOfflineRandomPage(
+        localPool,
+        excludeReelIds,
+        newShuffleSeed(),
+        readWatchIndex(),
+        LOCAL_PAGE,
+      ),
+    [localPool],
+  );
+
   const offline = mode === "offline";
   const displayOrder = offline ? localOrder : order;
+  const positionMode = offline ? "offline" : "online";
 
   const onOrderChange = useCallback(
     (next: FeedOrder) => {
+      const current = offline ? localOrder : order;
+      setPositionWritesEnabled(false);
+      skipResumeRef.current = true;
+      clearPosition(positionKey(positionMode, next));
       setLocalOrder(next);
       try { localStorage.setItem("ilp_last_order", next); } catch { /* Storage unavailable. */ }
+
+      if (next === "random") {
+        randomSeedRef.current = newShuffleSeed();
+        try { localStorage.setItem("ilp_shuffle_seed", String(randomSeedRef.current)); } catch { /* Storage unavailable. */ }
+      }
+
       if (offline) {
         window.history.replaceState(null, "", `/?order=${next}`);
-      } else {
+      } else if (next !== order) {
         router.push(`/?order=${next}`);
       }
-    },
-    [offline, router],
-  );
 
-  const feedKey = useMemo(
-    () => `${mode}-${loadedOrder}-${items.map((item) => item.id).join(",")}`,
-    [mode, loadedOrder, items],
+      const sameChronological = next !== "random" && next === current;
+      setFeedGeneration((generation) => generation + 1);
+      if (!sameChronological) {
+        setReloadVersion((version) => version + 1);
+      } else {
+        skipResumeRef.current = false;
+      }
+    },
+    [offline, localOrder, order, positionMode, router],
   );
 
   if (mode === "loading") {
@@ -269,8 +343,8 @@ export function FeedPageClient() {
         </div>
       </div>
       <ReelFeed
-        key={feedKey}
-        resumeKey={`ilp_position_${mode}_${loadedOrder}`}
+        key={`${mode}-${loadedOrder}-${feedGeneration}`}
+        resumeKey={positionKey(positionMode, loadedOrder)}
         initialItems={items}
         initialCursor={cursor}
         order={loadedOrder}
@@ -279,6 +353,7 @@ export function FeedPageClient() {
         collections={offline ? undefined : collections}
         paginate={!offline}
         localOnly={offline}
+        loadMoreItems={offline && loadedOrder === "random" ? loadMoreOfflineRandom : undefined}
         resolveVideoSrc={offline ? resolveVideoSrc : undefined}
         emptyTitle={offline ? "No saved videos yet" : "No videos yet"}
         emptyHint={

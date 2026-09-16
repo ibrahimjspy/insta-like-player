@@ -18,7 +18,9 @@ export function shouldLoadMoreFeed(params: {
   order: FeedOrder;
   cursor: string | null;
   randomExhausted: boolean;
+  localInfinite?: boolean;
 }): boolean {
+  if (params.localInfinite) return !params.randomExhausted;
   if (!params.paginate) return false;
   if (params.order === "random") return !params.randomExhausted;
   return params.cursor !== null;

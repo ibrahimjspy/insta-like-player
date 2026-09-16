@@ -43,6 +43,27 @@ describe("shouldLoadMoreFeed", () => {
       }),
     ).toBe(true);
   });
+
+  it("keeps local For you infinite even when server pagination is off", () => {
+    expect(
+      shouldLoadMoreFeed({
+        paginate: false,
+        order: "random",
+        cursor: null,
+        randomExhausted: false,
+        localInfinite: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldLoadMoreFeed({
+        paginate: false,
+        order: "random",
+        cursor: null,
+        randomExhausted: true,
+        localInfinite: true,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("nextFeedPaginationState", () => {

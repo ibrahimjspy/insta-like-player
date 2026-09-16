@@ -1,5 +1,9 @@
 export { OFFLINE_CONFIG } from "@/lib/offline/config";
-export { orderOfflineReels } from "@/lib/offline/feed";
+export {
+  nextOfflineRandomPage,
+  orderOfflineReels,
+  startWithResume,
+} from "@/lib/offline/feed";
 export {
   clearOfflineReels,
   deleteOfflineReel,

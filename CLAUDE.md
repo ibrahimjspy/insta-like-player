@@ -136,6 +136,10 @@ Import from `@/lib/feed` (not scattered `@/lib/engagement` / `@/lib/smart-feed`)
 After changing feed logic: `npm test -- src/lib/feed` (and `queries.test.ts` if
 `getFeed` changed). Player sends watch metrics via `recordWatch` / `flushWatchTime`
 in `src/app/actions.ts`; infinite scroll passes `exclude` reel ids to avoid repeats.
+A device-local watch index (`src/lib/feed/watch-index.ts`) also records last-watched
+time in localStorage so **offline For you** can rank unseen clips first and wrap
+infinitely (`orderOfflineReels` / `nextOfflineRandomPage` in `src/lib/offline/feed.ts`).
+Tapping an order tab jumps to the top; tapping For you starts a new shuffle.
 Feed chrome: `VideoOnlyToggle`, `AutoScrollToggle` in `FeedPageClient.tsx`.
 
 ## Conventions

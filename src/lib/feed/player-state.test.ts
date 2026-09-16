@@ -1,13 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readPosition, savePosition } from "./player-state";
+import { clearPosition, readPosition, savePosition, setPositionWritesEnabled } from "./player-state";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  setPositionWritesEnabled(true);
+  vi.unstubAllGlobals();
+});
 
 function storage() {
   const values = new Map<string, string>();
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => values.get(key) ?? null,
     setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => {
+      values.delete(key);
+    },
   });
   return values;
 }
@@ -30,8 +36,22 @@ describe("playback persistence", () => {
     }
   });
   it("works when browser storage is denied", () => {
-    vi.stubGlobal("localStorage", { getItem: () => { throw Error(); }, setItem: () => { throw Error(); } });
+    vi.stubGlobal("localStorage", { getItem: () => { throw Error(); }, setItem: () => { throw Error(); }, removeItem: () => { throw Error(); } });
     expect(readPosition("position")).toBeNull();
     expect(() => savePosition("position", { reelId: "a", time: 2 })).not.toThrow();
+    expect(() => clearPosition("position")).not.toThrow();
+  });
+
+  it("can suppress writes while a feed restart unmounts the current slide", () => {
+    const values = storage();
+    savePosition("position", { reelId: "a", time: 8 });
+    setPositionWritesEnabled(false);
+    savePosition("position", { reelId: "b", time: 99 });
+    expect(readPosition("position")).toEqual({ reelId: "a", time: 8 });
+    clearPosition("position");
+    expect(values.has("position")).toBe(false);
+    setPositionWritesEnabled(true);
+    savePosition("position", { reelId: "c", time: 1 });
+    expect(readPosition("position")).toEqual({ reelId: "c", time: 1 });
   });
 });

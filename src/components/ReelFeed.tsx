@@ -59,6 +59,8 @@ interface Props {
   resolveVideoSrc?: (reel: ReelView) => string;
   /// Hide server-backed destructive actions (offline pocket).
   localOnly?: boolean;
+  /// Local For you pages (offline pocket). When set, the feed never ends.
+  loadMoreItems?: (excludeReelIds: string[]) => ReelView[];
 }
 
 export function ReelFeed({
@@ -76,6 +78,7 @@ export function ReelFeed({
   collections,
   resolveVideoSrc,
   localOnly = false,
+  loadMoreItems,
 }: Props) {
   const [resume] = useState(() => resumeKey ? readPosition(resumeKey) : null);
   const [feedInit] = useState(() => {
@@ -226,13 +229,32 @@ export function ReelFeed({
     order,
     cursor,
     randomExhausted,
+    localInfinite: Boolean(loadMoreItems),
   });
+
+  const activeIndex = useMemo(
+    () => (activeReelId ? items.findIndex((r) => r.feedKey === activeReelId) : -1),
+    [items, activeReelId],
+  );
 
   const loadMore = useCallback(async () => {
     if (loadingRef.current || !hasMore) return;
+    if (loadMoreItems) {
+      const prefetchFrom = items.length < 3 ? items.length - 1 : items.length - 2;
+      if (activeIndex >= 0 && activeIndex < Math.max(0, prefetchFrom)) return;
+    }
     loadingRef.current = true;
     setLoading(true);
     try {
+      if (loadMoreItems) {
+        const pageItems = loadMoreItems(recentReelIds.current);
+        if (pageItems.length === 0) {
+          setRandomExhausted(true);
+          return;
+        }
+        setItems((prev) => [...prev, ...withFeedKeys(pageItems, prev.length)]);
+        return;
+      }
       const url = buildFeedFetchUrl({
         order,
         cursor,
@@ -256,7 +278,7 @@ export function ReelFeed({
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [hasMore, order, cursor, randomExhausted]);
+  }, [hasMore, order, cursor, randomExhausted, loadMoreItems, activeIndex, items.length]);
 
   const removeItem = useCallback((feedKey: string) => {
     setItems((prev) => prev.filter((r) => r.feedKey !== feedKey));
@@ -284,11 +306,6 @@ export function ReelFeed({
       onUserPausedChange?.(paused);
     },
     [onUserPausedChange],
-  );
-
-  const activeIndex = useMemo(
-    () => (activeReelId ? items.findIndex((r) => r.feedKey === activeReelId) : -1),
-    [items, activeReelId],
   );
 
   const advanceToNextSlide = useCallback(() => {

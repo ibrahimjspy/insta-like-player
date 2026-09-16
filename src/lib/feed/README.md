@@ -9,6 +9,7 @@ Personalized reel ranking for `?order=random` (UI label: **For you**).
 | [`sql.ts`](./sql.ts) | Builds the scoring SQL from `config` |
 | [`smart-feed.ts`](./smart-feed.ts) | `smartFeedIdsQuery()`, session exclude list |
 | [`engagement.ts`](./engagement.ts) | DB writes: `ReelEngagement`, `WatchHistory` |
+| [`watch-index.ts`](./watch-index.ts) | localStorage last-watched index (offline For you) |
 | [`index.ts`](./index.ts) | Public exports |
 
 Full design: [docs/FEED_RECOMMENDATIONS.md](../../../docs/FEED_RECOMMENDATIONS.md).

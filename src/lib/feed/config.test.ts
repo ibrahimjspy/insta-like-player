@@ -31,5 +31,9 @@ describe("FEED_TASTE_CONFIG", () => {
   it("aligns session limits with engagement exports", () => {
     expect(FEED_TASTE_CONFIG.session.minWatchSecToRecord).toBe(2);
     expect(FEED_TASTE_CONFIG.exclude.maxSessionIds).toBe(48);
+    expect(FEED_TASTE_CONFIG.exclude.localPageSize).toBe(10);
+    expect(FEED_TASTE_CONFIG.watchIndex.maxEntries).toBeGreaterThan(
+      FEED_TASTE_CONFIG.exclude.maxSessionIds,
+    );
   });
 });

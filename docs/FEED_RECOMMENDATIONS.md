@@ -89,6 +89,11 @@ One query per page:
 `ReelFeed` sends `exclude=id1,id2,...` (max 48) so the next infinite-scroll batch
 doesn’t repeat what’s already on screen.
 
+Offline For you cannot query Postgres. The player also writes a localStorage
+watch index (`src/lib/feed/watch-index.ts`) and `orderOfflineReels` ranks the
+pocket with the same recency idea: unseen first, last-3h last. `nextOfflineRandomPage`
+wraps that pool so the feed never ends.
+
 ## Tuning guide
 
 Edit [`FEED_TASTE_CONFIG`](../src/lib/feed/config.ts):
@@ -126,6 +131,7 @@ Response shape unchanged: `{ items, nextCursor: "more" | null }`.
 | `sql.test.ts` | CTEs present, config weights embedded in SQL |
 | `smart-feed.test.ts` | Exclude list normalization |
 | `engagement.test.ts` | DB write behavior (mocked Prisma) |
+| `watch-index.test.ts` | localStorage recency index |
 | `queries.test.ts` | `getFeed` integration (mocked DB) |
 
 No Postgres required for unit tests.
