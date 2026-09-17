@@ -46,3 +46,10 @@ export {
   reelDecayedEngagement,
   type DurationBucket,
 } from "@/lib/feed/taste";
+export {
+  FEED_ORDERS,
+  LAST_ORDER_STORAGE_KEY,
+  feedOrderPath,
+  parseFeedOrder,
+  resolveFeedOrder,
+} from "@/lib/feed/order";

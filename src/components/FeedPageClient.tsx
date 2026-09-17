@@ -1,7 +1,7 @@
 "use client";
 
 import { CloudOff } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { AutoScrollToggle } from "@/components/AutoScrollToggle";
@@ -12,6 +12,12 @@ import { useReaderChrome } from "@/components/ReaderChromeContext";
 import { ReelFeed } from "@/components/ReelFeed";
 import { VideoOnlyToggle } from "@/components/VideoOnlyToggle";
 import { FEED_TASTE_CONFIG } from "@/lib/feed/config";
+import {
+  LAST_ORDER_STORAGE_KEY,
+  feedOrderPath,
+  parseFeedOrder,
+  resolveFeedOrder,
+} from "@/lib/feed/order";
 import {
   clearPosition,
   readPosition,
@@ -31,7 +37,6 @@ import {
 import type { ReelView } from "@/lib/types";
 import type { FeedOrder } from "@/lib/queries";
 
-const ORDERS: FeedOrder[] = ["recent", "oldest", "random"];
 const LOCAL_PAGE = FEED_TASTE_CONFIG.exclude.localPageSize;
 
 type FeedMode = "loading" | "online" | "offline";
@@ -50,13 +55,8 @@ function newShuffleSeed(): number {
 }
 
 export function FeedPageClient() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const orderParam = searchParams.get("order");
-  const order: FeedOrder =
-    orderParam && ORDERS.includes(orderParam as FeedOrder)
-      ? (orderParam as FeedOrder)
-      : "recent";
   const [orderReady, setOrderReady] = useState(false);
   const { setFeedPausedChrome } = useReaderChrome();
   const { hostReachable, markHostUnavailable, probeHost } = useOffline();
@@ -67,8 +67,10 @@ export function FeedPageClient() {
   const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [blobUrls, setBlobUrls] = useState<Map<string, string>>(new Map());
   const [reloadVersion, setReloadVersion] = useState(0);
-  const [loadedOrder, setLoadedOrder] = useState<FeedOrder>(order);
-  const [localOrder, setLocalOrder] = useState<FeedOrder>(order);
+  // Drive the tabs from React state. Syncing For you through Next searchParams
+  // remounted the feed on Recent before the URL caught up.
+  const [localOrder, setLocalOrder] = useState<FeedOrder>("recent");
+  const [loadedOrder, setLoadedOrder] = useState<FeedOrder>("recent");
   const [feedGeneration, setFeedGeneration] = useState(0);
   const blobUrlsRef = useRef<Map<string, string>>(new Map());
   const randomSeedRef = useRef<number | null>(null);
@@ -80,25 +82,26 @@ export function FeedPageClient() {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(FEED_TASTE_CONFIG.player.videoOnlyStorageKey) === "true";
   });
-  const selectedOrder = hostReachable === false ? localOrder : order;
 
   useEffect(() => {
+    if (orderReady) return;
     const frame = requestAnimationFrame(() => {
       let saved: string | null = null;
-      try { saved = localStorage.getItem("ilp_last_order"); } catch { /* Storage unavailable. */ }
-      if (!orderParam && saved && ORDERS.includes(saved as FeedOrder)) {
-        setLocalOrder(saved as FeedOrder);
-        router.replace(`/?order=${saved}`);
+      try { saved = localStorage.getItem(LAST_ORDER_STORAGE_KEY); } catch { /* Storage unavailable. */ }
+      const resolved = resolveFeedOrder(orderParam, saved);
+      setLocalOrder(resolved);
+      if (!parseFeedOrder(orderParam)) {
+        window.history.replaceState(null, "", feedOrderPath(resolved));
       }
       setOrderReady(true);
     });
     return () => cancelAnimationFrame(frame);
-  }, [orderParam, router]);
+  }, [orderParam, orderReady]);
 
   useEffect(() => {
-    if (!orderReady || !orderParam) return;
-    try { localStorage.setItem("ilp_last_order", order); } catch { /* Storage unavailable. */ }
-  }, [order, orderParam, orderReady]);
+    if (!orderReady) return;
+    try { localStorage.setItem(LAST_ORDER_STORAGE_KEY, localOrder); } catch { /* Storage unavailable. */ }
+  }, [localOrder, orderReady]);
 
   const onVideoOnlyChange = useCallback((enabled: boolean) => {
     setVideoOnly(enabled);
@@ -159,12 +162,12 @@ export function FeedPageClient() {
       randomSeedRef.current = seed;
       const watchIndex = readWatchIndex();
       let ordered = offlineRecordsToViews(
-        orderOfflineReels(records, selectedOrder, seed, watchIndex),
+        orderOfflineReels(records, localOrder, seed, watchIndex),
       );
       const resumeId = skipResume
         ? null
-        : readPosition(positionKey("offline", selectedOrder))?.reelId ?? null;
-      if (selectedOrder === "random") {
+        : readPosition(positionKey("offline", localOrder))?.reelId ?? null;
+      if (localOrder === "random") {
         ordered = startWithResume(ordered, resumeId);
         setLocalPool(ordered);
         setItems(ordered.slice(0, LOCAL_PAGE));
@@ -177,7 +180,7 @@ export function FeedPageClient() {
       const nextUrls = createBlobUrlMap(records);
       replaceBlobUrls(nextUrls);
       setCollections([]);
-      finishLoad("offline", selectedOrder);
+      finishLoad("offline", localOrder);
     };
 
     const load = async () => {
@@ -189,10 +192,10 @@ export function FeedPageClient() {
       try {
         const resumeId = skipResume
           ? ""
-          : readPosition(positionKey("online", selectedOrder))?.reelId ?? "";
+          : readPosition(positionKey("online", localOrder))?.reelId ?? "";
         const [feedResponse, collectionResponse] = await Promise.all([
           fetch(
-            `/api/reels?order=${selectedOrder}&resume=${encodeURIComponent(resumeId)}`,
+            `/api/reels?order=${localOrder}&resume=${encodeURIComponent(resumeId)}`,
             {
               cache: "no-store",
               signal: controller.signal,
@@ -216,7 +219,7 @@ export function FeedPageClient() {
         setItems(feed.items);
         setCursor(feed.nextCursor);
         setCollections(nextCollections);
-        finishLoad("online", selectedOrder);
+        finishLoad("online", localOrder);
       } catch (err) {
         if (cancelled || (err instanceof Error && err.name === "AbortError")) return;
         markHostUnavailable();
@@ -231,7 +234,7 @@ export function FeedPageClient() {
       cancelled = true;
       controller.abort();
     };
-  }, [hostReachable, markHostUnavailable, reloadVersion, selectedOrder, orderReady]);
+  }, [hostReachable, markHostUnavailable, reloadVersion, localOrder, orderReady]);
 
   useLayoutEffect(() => {
     setPositionWritesEnabled(true);
@@ -263,38 +266,25 @@ export function FeedPageClient() {
   );
 
   const offline = mode === "offline";
-  const displayOrder = offline ? localOrder : order;
   const positionMode = offline ? "offline" : "online";
 
   const onOrderChange = useCallback(
     (next: FeedOrder) => {
-      const current = offline ? localOrder : order;
       setPositionWritesEnabled(false);
       skipResumeRef.current = true;
       clearPosition(positionKey(positionMode, next));
       setLocalOrder(next);
-      try { localStorage.setItem("ilp_last_order", next); } catch { /* Storage unavailable. */ }
+      try { localStorage.setItem(LAST_ORDER_STORAGE_KEY, next); } catch { /* Storage unavailable. */ }
 
       if (next === "random") {
         randomSeedRef.current = newShuffleSeed();
         try { localStorage.setItem("ilp_shuffle_seed", String(randomSeedRef.current)); } catch { /* Storage unavailable. */ }
       }
 
-      if (offline) {
-        window.history.replaceState(null, "", `/?order=${next}`);
-      } else if (next !== order) {
-        router.push(`/?order=${next}`);
-      }
-
-      const sameChronological = next !== "random" && next === current;
-      setFeedGeneration((generation) => generation + 1);
-      if (!sameChronological) {
-        setReloadVersion((version) => version + 1);
-      } else {
-        skipResumeRef.current = false;
-      }
+      window.history.replaceState(null, "", feedOrderPath(next));
+      setReloadVersion((version) => version + 1);
     },
-    [offline, localOrder, order, positionMode, router],
+    [positionMode],
   );
 
   if (mode === "loading") {
@@ -308,7 +298,7 @@ export function FeedPageClient() {
   return (
     <div className="relative h-full">
       <div
-        className={`absolute inset-x-0 top-0 z-50 flex justify-center px-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-all duration-200 ease-out ${
+        className={`absolute inset-x-0 top-0 z-50 flex justify-center px-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-[opacity,transform] duration-200 ease-out ${
           showOrderBar
             ? "pointer-events-auto translate-y-0 opacity-100"
             : "pointer-events-none -translate-y-3 opacity-0"
@@ -316,7 +306,7 @@ export function FeedPageClient() {
         aria-hidden={!showOrderBar}
       >
         <div className="flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center justify-center gap-1.5 rounded-[1.35rem] border border-white/10 bg-black/45 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl">
-          <OrderSelect value={displayOrder} onChange={onOrderChange} />
+          <OrderSelect value={localOrder} onChange={onOrderChange} />
           {offline && (
             <span
               className="inline-flex size-7 items-center justify-center rounded-full text-white/55"

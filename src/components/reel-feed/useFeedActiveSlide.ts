@@ -61,6 +61,14 @@ export function useFeedActiveSlide(
   }, [feedRef, itemsLength, onActiveChange]);
 }
 
+/** True when the user moved to a different slide — not the first clip after mount. */
+export function isUserSlideChange(
+  previousActiveId: string | null,
+  nextActiveId: string | null,
+): boolean {
+  return previousActiveId !== null && nextActiveId !== null && previousActiveId !== nextActiveId;
+}
+
 /** Runs when user scrolls to a new slide (unpause chrome). */
 export function useOnReelActivated(
   activeReelId: string | null,
@@ -68,8 +76,9 @@ export function useOnReelActivated(
 ) {
   const prev = useRef<string | null>(null);
   useEffect(() => {
-    if (!activeReelId || activeReelId === prev.current) return;
+    const previous = prev.current;
+    if (!activeReelId || activeReelId === previous) return;
     prev.current = activeReelId;
-    onActivated();
+    if (isUserSlideChange(previous, activeReelId)) onActivated();
   }, [activeReelId, onActivated]);
 }

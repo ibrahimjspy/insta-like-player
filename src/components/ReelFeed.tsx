@@ -31,7 +31,7 @@ import {
   type FeedItem,
 } from "@/lib/feed/feed-pagination";
 import { openOnPlatformLabel } from "@/lib/platforms";
-import { type ReelView, videoSrc } from "@/lib/types";
+import { thumbSrc, type ReelView, videoSrc } from "@/lib/types";
 
 type FeedOrder = "recent" | "oldest" | "random";
 
@@ -91,7 +91,7 @@ export function ReelFeed({
   const [randomExhausted, setRandomExhausted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeReelId, setActiveReelId] = useState<string | null>(feedInit.activeReelId);
-  const [userPaused, setUserPaused] = useState(false);
+  const [userPaused, setUserPaused] = useState(true);
   const feedRef = useRef<HTMLDivElement | null>(null);
   const scrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartIndex = useRef<number | null>(null);
@@ -612,12 +612,24 @@ function ReelSlide({
       data-reel-id={reel.feedKey}
       className="feed-snap-slide relative flex h-full w-full shrink-0 items-center justify-center overflow-hidden bg-black"
     >
-      <div className="absolute inset-0 flex items-center justify-center bg-black">
+      <div className="absolute inset-0 grid place-items-center bg-black">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={thumbSrc(reel.platform, reel.shortcode)}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="col-start-1 row-start-1 max-h-full max-w-full object-contain object-center"
+          onError={(event) => {
+            event.currentTarget.style.visibility = "hidden";
+          }}
+        />
         <video
           key={reel.feedKey}
           ref={videoRef}
           src={attachVideo ? mediaSrc : undefined}
-          className={`max-h-full max-w-full object-contain object-center ${
+          poster={thumbSrc(reel.platform, reel.shortcode)}
+          className={`col-start-1 row-start-1 max-h-full max-w-full object-contain object-center transition-opacity duration-200 ${
             showVideo ? "opacity-100" : "opacity-0"
           }`}
           loop
