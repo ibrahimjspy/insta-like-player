@@ -21,6 +21,7 @@ import {
   takeReelOffline,
   unpinReelOffline,
 } from "@/lib/offline";
+import { OFFLINE_CONFIG } from "@/lib/offline/config";
 import { isOfflineAllowedPlatform } from "@/lib/offline/policy";
 import type { ReelView } from "@/lib/types";
 
@@ -47,11 +48,22 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const [autoSyncing, setAutoSyncing] = useState(false);
   const syncingRef = useRef(false);
   const probingRef = useRef<Promise<boolean> | null>(null);
+  const reachableRef = useRef<boolean | null>(null);
 
   const probeHost = useCallback(async (): Promise<boolean> => {
     if (probingRef.current) return probingRef.current;
-    const probe = canReachOfflineHost()
+    const run = async () => {
+      let reachable = await canReachOfflineHost();
+      // A live feed should not drop to the offline pocket because one probe
+      // was slow (busy relay link, pocket download in flight): confirm first.
+      if (!reachable && reachableRef.current === true) {
+        reachable = await canReachOfflineHost();
+      }
+      return reachable;
+    };
+    const probe = run()
       .then((reachable) => {
+        reachableRef.current = reachable;
         setHostReachable(reachable);
         return reachable;
       })
@@ -62,7 +74,20 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     return probe;
   }, []);
 
-  const markHostUnavailable = useCallback(() => setHostReachable(false), []);
+  const markHostUnavailable = useCallback(() => {
+    reachableRef.current = false;
+    setHostReachable(false);
+  }, []);
+
+  // Recover on its own: while the host looks unreachable, keep re-probing so
+  // the feed goes back to live without needing an app restart.
+  useEffect(() => {
+    if (hostReachable !== false) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine) void probeHost();
+    }, OFFLINE_CONFIG.probeRetryIntervalMs);
+    return () => window.clearInterval(timer);
+  }, [hostReachable, probeHost]);
 
   const reloadIds = useCallback(async () => {
     const [ids, pins] = await Promise.all([getOfflineIds(), getOfflinePinnedIds()]);
@@ -127,6 +152,9 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const tryRefresh = () => {
+      // A pocket download in flight already proves the host is up, and it
+      // slows probes enough on relayed links to look like an outage.
+      if (syncingRef.current) return;
       void probeHost();
       void runAutoRefresh();
     };
@@ -140,7 +168,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     // the user's first manual Refresh, avoiding a surprise 2 GB download.
     const bootTimer = window.setTimeout(() => {
       if (navigator.onLine) tryRefresh();
-      else setHostReachable(false);
+      else markHostUnavailable();
     }, 1500);
     return () => {
       window.removeEventListener("online", tryRefresh);
@@ -148,7 +176,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisible);
       window.clearTimeout(bootTimer);
     };
-  }, [probeHost, runAutoRefresh]);
+  }, [markHostUnavailable, probeHost, runAutoRefresh]);
 
   const takeOffline = useCallback(
     async (reel: ReelView) => {

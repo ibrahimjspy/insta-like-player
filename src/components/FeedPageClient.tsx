@@ -61,6 +61,10 @@ export function FeedPageClient() {
   const { setFeedPausedChrome } = useReaderChrome();
   const { hostReachable, markHostUnavailable, probeHost } = useOffline();
   const [mode, setMode] = useState<FeedMode>("loading");
+  const modeRef = useRef<FeedMode>("loading");
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
   const [items, setItems] = useState<ReelView[]>([]);
   const [localPool, setLocalPool] = useState<ReelView[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -121,7 +125,11 @@ export function FeedPageClient() {
   }, [hostReachable, probeHost]);
 
   useEffect(() => {
-    const onOfflineChanged = () => setReloadVersion((v) => v + 1);
+    // Pocket changes only alter what the offline feed shows. Reloading the
+    // live feed here restarted playback whenever a background download landed.
+    const onOfflineChanged = () => {
+      if (modeRef.current === "offline") setReloadVersion((v) => v + 1);
+    };
     window.addEventListener(OFFLINE_CHANGED_EVENT, onOfflineChanged);
     return () => window.removeEventListener(OFFLINE_CHANGED_EVENT, onOfflineChanged);
   }, []);

@@ -13,6 +13,12 @@ export const OFFLINE_CONFIG = {
   /// Min gap between automatic reconnect refreshes.
   autoRefreshCooldownMs: 5 * 60 * 1000,
   autoRefreshStorageKey: "like-player-offline-auto-refresh-at",
+  /// Reachability probe timeout. Tailscale relay (DERP) links on mobile can
+  /// take a few seconds to wake up, so keep this generous.
+  probeTimeoutMs: 4_000,
+  /// While the host looks unreachable, re-probe this often so the feed
+  /// returns to live on its own.
+  probeRetryIntervalMs: 8_000,
   dbName: "like-player-offline",
   dbVersion: 1,
   storeName: "reels",
